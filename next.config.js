@@ -1,7 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Prevent Anthropic SDK from being bundled client-side
-  serverExternalPackages: ['@anthropic-ai/sdk'],
+  experimental: {
+    // Required in Next.js 14.x to prevent Anthropic SDK from being bundled client-side
+    serverComponentsExternalPackages: ['@anthropic-ai/sdk'],
+  },
 }
 
 module.exports = nextConfig
