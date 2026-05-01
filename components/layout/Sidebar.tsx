@@ -1,0 +1,111 @@
+'use client'
+
+import { usePathname, useRouter } from 'next/navigation'
+import { createBrowserClient } from '@/lib/supabase-browser'
+import type { Course, Profile } from '@/types'
+import Link from 'next/link'
+
+interface Props {
+  profile: Profile | null
+  courses: Pick<Course, 'id' | 'title' | 'number' | 'term' | 'total_points'>[]
+  userEmail: string
+}
+
+export default function Sidebar({ profile, courses, userEmail }: Props) {
+  const pathname = usePathname()
+  const router = useRouter()
+  const supabase = createBrowserClient()
+
+  const displayName = profile?.full_name || userEmail.split('@')[0]
+  const initial = displayName.charAt(0).toUpperCase()
+
+  async function signOut() {
+    await supabase.auth.signOut()
+    router.push('/auth')
+    router.refresh()
+  }
+
+  const navItems = [
+    { href: '/dashboard', label: 'Dashboard', icon: '⊞' },
+    { href: '/dashboard/generate', label: 'Generate Course', icon: '✦' },
+    { href: '/dashboard/export', label: 'Export', icon: '↓' },
+  ]
+
+  return (
+    <aside className="cf-sidebar">
+      {/* Logo */}
+      <div className="cf-sidebar-logo">
+        <div className="cf-serif" style={{ fontSize: 19, fontWeight: 500, color: 'var(--cf-paper)' }}>
+          Course<em style={{ color: 'var(--cf-gold2)' }}>Forge</em>
+        </div>
+        <div className="cf-mono" style={{ fontSize: 9, color: 'rgba(255,255,255,0.28)', marginTop: 2, letterSpacing: '0.4px' }}>
+          // AI Course Design Platform
+        </div>
+      </div>
+
+      {/* Professor */}
+      <div className="cf-sidebar-prof">
+        <div className="cf-avatar">{initial}</div>
+        <div>
+          <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--cf-paper)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 150 }}>
+            {displayName}
+          </div>
+          <div className="cf-mono" style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)' }}>
+            {profile?.department || profile?.institution || 'Faculty'}
+          </div>
+        </div>
+      </div>
+
+      {/* Nav */}
+      <div style={{ padding: '10px 8px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+        <div className="cf-mono" style={{ fontSize: 9, color: 'rgba(255,255,255,0.22)', textTransform: 'uppercase', letterSpacing: '1px', padding: '0 8px', marginBottom: 4 }}>
+          Workspace
+        </div>
+        {navItems.map(item => (
+          <Link key={item.href} href={item.href} style={{ textDecoration: 'none' }}>
+            <button className={`cf-nav-btn ${pathname === item.href ? 'is-active' : ''}`}>
+              <span>{item.icon}</span> {item.label}
+            </button>
+          </Link>
+        ))}
+      </div>
+
+      {/* Courses list */}
+      <div style={{ flex: 1, padding: '10px 8px', overflowY: 'auto' }}>
+        <div className="cf-mono" style={{ fontSize: 9, color: 'rgba(255,255,255,0.22)', textTransform: 'uppercase', letterSpacing: '1px', padding: '0 8px', marginBottom: 5 }}>
+          My Courses
+        </div>
+        {courses.length === 0 ? (
+          <div className="cf-mono" style={{ padding: '7px 9px', fontSize: 11, color: 'rgba(255,255,255,0.22)' }}>
+            No courses yet
+          </div>
+        ) : (
+          courses.map(c => (
+            <Link key={c.id} href={`/dashboard/courses/${c.id}`} style={{ textDecoration: 'none' }}>
+              <div className={`cf-course-pill ${pathname.includes(c.id) ? 'is-active' : ''}`}>
+                <div style={{ fontSize: 12, fontWeight: 500, color: pathname.includes(c.id) ? 'var(--cf-gold2)' : 'rgba(255,255,255,0.72)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {c.title}
+                </div>
+                <div className="cf-mono" style={{ fontSize: 9, color: 'rgba(255,255,255,0.26)', marginTop: 1 }}>
+                  {c.term || '—'} · {c.total_points || 0} pts
+                </div>
+              </div>
+            </Link>
+          ))
+        )}
+      </div>
+
+      {/* Bottom */}
+      <div style={{ padding: '10px 8px', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+        <Link href="/dashboard/courses/new" style={{ textDecoration: 'none' }}>
+          <button style={{ width: '100%', padding: '8px', background: 'rgba(184,134,11,0.14)', border: '1px solid rgba(184,134,11,0.28)', borderRadius: 6, color: 'var(--cf-gold2)', fontFamily: 'var(--cf-sans)', fontSize: 12, fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, marginBottom: 5 }}>
+            + Add Course
+          </button>
+        </Link>
+        <button onClick={signOut} style={{ width: '100%', padding: '7px', background: 'none', border: 'none', color: 'rgba(255,255,255,0.28)', fontFamily: 'var(--cf-mono)', fontSize: 10, cursor: 'pointer', textAlign: 'center' }}>
+          Sign out
+        </button>
+      </div>
+    </aside>
+  )
+}
