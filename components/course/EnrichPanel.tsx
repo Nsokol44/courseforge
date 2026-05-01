@@ -356,19 +356,19 @@ export default function EnrichPanel({ courseId, totalWeeks, toolPreferences, onC
                             <p style={{ fontSize: 12, color: 'var(--cf-muted)', lineHeight: 1.6 }}>{a.description}</p>
                           </div>
                         ))}
-                        {ws.result.readings?.length > 0 && (
+                        {(ws.result.readings?.length ?? 0) > 0 && (
                           <div style={{ marginBottom: 8 }}>
                             <div className="cf-mono" style={{ fontSize: 9, color: 'var(--cf-muted2)', textTransform: 'uppercase', marginBottom: 4 }}>Readings</div>
-                            {ws.result.readings.map((r, i) => {
+                            {(ws.result.readings ?? []).map((r: any, i: number) => {
                               const text = typeof r === 'string' ? r : [r.author, r.title, r.source, r.description].filter(Boolean).join(' — ')
                               return <div key={i} style={{ fontSize: 12, color: 'var(--cf-muted)', marginBottom: 2 }}>→ {text}</div>
                             })}
                           </div>
                         )}
-                        {ws.result.reinforcement_materials?.length > 0 && (
+                        {(ws.result.reinforcement_materials?.length ?? 0) > 0 && (
                           <div style={{ marginBottom: 8 }}>
                             <div className="cf-mono" style={{ fontSize: 9, color: 'var(--cf-muted2)', textTransform: 'uppercase', marginBottom: 4 }}>Resources</div>
-                            {ws.result.reinforcement_materials.map((m, i) => (
+                            {(ws.result.reinforcement_materials ?? []).map((m: any, i: number) => (
                               <div key={i} style={{ display: 'flex', gap: 7, marginBottom: 5, padding: '5px 8px', background: 'var(--cf-paper2)', borderRadius: 5 }}>
                                 <span>{TYPE_ICON[m.type] || '🔗'}</span>
                                 <div>
@@ -379,10 +379,10 @@ export default function EnrichPanel({ courseId, totalWeeks, toolPreferences, onC
                             ))}
                           </div>
                         )}
-                        {ws.result.realworld?.length > 0 && (
+                        {(ws.result.realworld?.length ?? 0) > 0 && (
                           <div>
                             <div className="cf-mono" style={{ fontSize: 9, color: 'var(--cf-muted2)', textTransform: 'uppercase', marginBottom: 4 }}>Real-World</div>
-                            {ws.result.realworld.map((r, i) => (
+                            {(ws.result.realworld ?? []).map((r: any, i: number) => (
                               <div key={i} style={{ padding: '5px 8px', background: 'var(--cf-paper2)', borderRadius: 5, borderLeft: '2px solid var(--cf-gold)', marginBottom: 4 }}>
                                 <div style={{ fontSize: 12.5, fontWeight: 600 }}>{r.title}</div>
                                 {r.url && <a href={r.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: 'var(--cf-gold)', fontFamily: 'var(--cf-mono)', textDecoration: 'none' }}>{r.source} ↗</a>}

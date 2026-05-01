@@ -251,7 +251,7 @@ export default function CourseView({ course: initialCourse, profile }: Props) {
                         {w.week_description && !w.concept_overview && (
                           <p style={{ fontSize: 12.5, color: 'var(--cf-muted)', lineHeight: 1.6, marginBottom: 7 }}>{w.week_description}</p>
                         )}
-                        {w.readings?.length > 0 && (
+                        {(w.readings?.length ?? 0) > 0 && (
                           <div style={{ marginBottom: 6 }}>
                             <span className="cf-mono" style={{ fontSize: 9, color: 'var(--cf-muted2)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Readings</span>
                             <ul style={{ marginTop: 3, paddingLeft: 16 }}>
@@ -267,7 +267,7 @@ export default function CourseView({ course: initialCourse, profile }: Props) {
                             </ul>
                           </div>
                         )}
-                        {w.reinforcement_materials?.length > 0 && (
+                        {(w.reinforcement_materials?.length ?? 0) > 0 && (
                           <div style={{ marginBottom: 6 }}>
                             <span className="cf-mono" style={{ fontSize: 9, color: 'var(--cf-muted2)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Resources</span>
                             <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -281,7 +281,7 @@ export default function CourseView({ course: initialCourse, profile }: Props) {
                             </div>
                           </div>
                         )}
-                        {w.assignments?.length > 0 && (
+                        {(w.assignments?.length ?? 0) > 0 && (
                           <div>
                             <span className="cf-mono" style={{ fontSize: 9, color: 'var(--cf-muted2)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Due</span>
                             <div style={{ marginTop: 3, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
