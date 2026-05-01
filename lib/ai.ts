@@ -373,7 +373,7 @@ export async function analyzeStyleProfile(filesContext: string): Promise<StylePr
 {"chips":["trait1","trait2","trait3","trait4"],"description":"2-3 sentences","detectedTitle":"or empty","detectedNumber":"or empty","detectedTerm":"or empty"}`,
     messages: [{ role: 'user', content: `Analyze:\n\n${filesContext}` }],
   })
-  const raw = response.content.find(b => b.type === 'text')?.text || '{}'
+  const raw = (response.content.find(b => b.type === 'text') as any)?.text || '{}'
   try {
     return JSON.parse(extractJSON(raw)) as StyleProfile
   } catch {

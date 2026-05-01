@@ -76,7 +76,7 @@ Rules:
       messages: [{ role: 'user', content: prompt }],
     })
 
-    const raw = response.content.find(b => b.type === 'text')?.text || ''
+    const raw = (response.content.find(b => b.type === 'text') as any)?.text || ''
     const jsonStr = extractJSON(raw)
 
     let weeks: any[] = []

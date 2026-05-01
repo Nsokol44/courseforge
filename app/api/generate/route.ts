@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       }],
     })
 
-    const raw = response.content.find(b => b.type === 'text')?.text || ''
+    const raw = (response.content.find(b => b.type === 'text') as any)?.text || ''
     const parsed = parseGenerationResponse(raw)
 
     // Surface parse failures clearly rather than silently saving an empty course

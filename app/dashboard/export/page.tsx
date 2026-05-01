@@ -5,7 +5,13 @@ export default async function ExportPage() {
   const supabase = createServerClient()
   const { data: courses } = await supabase
     .from('courses')
-    .select(`id, title, number, term, total_points, weeks(week_number, topic, assignments), assignments(title, type, points, due_date)`)
+    .select(`
+      id, title, number, term, total_points,
+      weeks(week_number, topic, dates, week_description, concept_overview, readings, assignments, reinforcement_materials),
+      assignments(id, title, type, points, week, due_date, description),
+      python_activities(id, title, week, description, code),
+      realworld_items(id, title, source, url, description, week)
+    `)
     .order('created_at', { ascending: false })
 
   return (

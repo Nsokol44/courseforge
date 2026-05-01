@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
       messages: [{ role: 'user', content: resolvedPrompt }],
     })
 
-    const text = response.content.find(b => b.type === 'text')?.text || 'No response.'
+    const text = (response.content.find(b => b.type === 'text') as any)?.text || 'No response.'
     const parsedData = parseAIResponse(text, resolvedPrompt)
 
     return NextResponse.json({ text, parsedData })
