@@ -136,7 +136,7 @@ export default function CourseView({ course: initialCourse, profile }: Props) {
     { id: 'schedule', label: '📅 Schedule' },
     { id: 'assignments', label: `📝 Assignments (${course.assignments?.length || 0})` },
     { id: 'analysis', label: '📊 Analysis' },
-    { id: 'python', label: '🐍 Python' },
+    { id: 'python', label: `🎯 Activities (${course.python_activities?.length || 0})` },
     { id: 'realworld', label: '🌍 Real-World' },
   ]
 
@@ -456,12 +456,12 @@ export default function CourseView({ course: initialCourse, profile }: Props) {
           </div>
         )}
 
-        {/* ── PYTHON ── */}
+        {/* ── PYTHON / ACTIVITIES ── */}
         {activeTab === 'python' && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <span style={{ fontSize: 12.5, color: 'var(--cf-muted)' }}>{course.python_activities?.length || 0} activities</span>
-              {course.tool_preferences?.python_env && (
+              {course.tool_preferences?.python_env && course.tool_preferences.python_env !== 'None' && (
                 <span style={{ fontFamily: 'var(--cf-mono)', fontSize: 10, color: 'var(--cf-sage)', background: 'var(--cf-sage-pale)', padding: '3px 10px', borderRadius: 4, border: '1px solid rgba(58,92,58,0.2)' }}>
                   Environment: {course.tool_preferences.python_env}
                 </span>
@@ -469,24 +469,34 @@ export default function CourseView({ course: initialCourse, profile }: Props) {
             </div>
             {!course.python_activities?.length ? (
               <div style={{ textAlign: 'center', padding: 40, color: 'var(--cf-muted)', fontSize: 13 }}>
-                No Python activities yet. Use <strong>Deep Enrich</strong> or ask the AI to generate interactive activities.
+                No activities yet. Use <strong>Deep Enrich</strong> or ask the AI to generate activities.
               </div>
             ) : (
-              course.python_activities.map(p => (
-                <div key={p.id} className="cf-py-card">
-                  <div className="cf-py-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--cf-paper)' }}>🐍 {p.title}</span>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <span className="cf-badge cf-badge-refl cf-mono">{p.week || '—'}</span>
-                      {course.tool_preferences?.python_env === 'Google Colab' && (
-                        <span style={{ fontFamily: 'var(--cf-mono)', fontSize: 9, color: 'var(--cf-sage)', background: 'rgba(58,92,58,0.2)', padding: '2px 7px', borderRadius: 3 }}>Colab</span>
-                      )}
+              course.python_activities.map(p => {
+                const isScenario = !p.code || p.code.trim() === ''
+                return (
+                  <div key={p.id} className="cf-py-card">
+                    <div className="cf-py-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--cf-paper)' }}>
+                        {isScenario ? '🕵️' : '🐍'} {p.title}
+                      </span>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <span className="cf-badge cf-badge-refl cf-mono">{p.week || '—'}</span>
+                        {!isScenario && course.tool_preferences?.python_env === 'Google Colab' && (
+                          <span style={{ fontFamily: 'var(--cf-mono)', fontSize: 9, color: 'var(--cf-sage)', background: 'rgba(58,92,58,0.2)', padding: '2px 7px', borderRadius: 3 }}>Colab</span>
+                        )}
+                        {isScenario && (
+                          <span style={{ fontFamily: 'var(--cf-mono)', fontSize: 9, color: 'var(--cf-gold)', background: 'rgba(184,134,11,0.2)', padding: '2px 7px', borderRadius: 3 }}>Scenario</span>
+                        )}
+                      </div>
                     </div>
+                    {p.description && (
+                      <div className="cf-py-desc" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{p.description}</div>
+                    )}
+                    {!isScenario && p.code && <pre className="cf-py-code">{p.code}</pre>}
                   </div>
-                  {p.description && <div className="cf-py-desc">{p.description}</div>}
-                  {p.code && <pre className="cf-py-code">{p.code}</pre>}
-                </div>
-              ))
+                )
+              })
             )}
           </div>
         )}

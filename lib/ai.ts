@@ -240,8 +240,42 @@ export function buildGenerationPrompt(params: {
   pattern: string; styleContext: string; professorName: string
   institution: string; options: { news: boolean; python: boolean; bloom: boolean; diff: boolean }
   toolPreferences?: ToolPreferences | null
-  weekCount: number  // calculated from dates in the route, passed explicitly
+  weekCount: number
+  activityMode: 'python' | 'scenario' | 'none'
 }): string {
+
+  // ── Activity section schema changes by mode ──
+  const activitySchema = params.activityMode === 'python'
+    ? `"python_activities": [
+    {
+      "title": "Activity title",
+      "week": "Week 4",
+      "description": "What students build and learn",
+      "code": "# Colab-ready starter code\\nimport geopandas as gpd\\n# YOUR CODE HERE"
+    }
+  ],`
+    : params.activityMode === 'scenario'
+    ? `"python_activities": [
+    {
+      "title": "Scenario activity title — e.g. 'The Urban Heat Island Detective'",
+      "week": "Week 4",
+      "description": "Full scenario activity. Structure as: (1) SCENARIO SETUP — vivid real-world problem framing (2-3 sentences putting the student in a professional role); (2) YOUR MISSION — 3-4 specific tasks the student must complete; (3) MATERIALS PROVIDED — what data, maps, or resources they receive; (4) DELIVERABLE — exactly what to submit and how it will be graded; (5) EXTENSION — harder challenge for advanced students. Write in second person, active voice.",
+      "code": ""
+    }
+  ],`
+    : '"python_activities": [],'
+
+  const activityRule = params.activityMode === 'python'
+    ? `- python_activities: ${params.weekCount <= 8 ? '1-2' : '2-3'} Colab-ready notebooks with actual runnable starter code and # YOUR CODE HERE gaps`
+    : params.activityMode === 'scenario'
+    ? `- python_activities: ${params.weekCount <= 8 ? '2-3' : '3-4'} scenario-based activities (no code required). Each must have a vivid professional role-play setup, clear mission tasks, specified materials, grading criteria, and an extension challenge. Model after case-study detective exercises — make them feel like real fieldwork.`
+    : '- python_activities: []'
+
+  // ── Reading format instruction ──
+  const readingInstruction = params.activityMode === 'scenario' || params.activityMode === 'none'
+    ? `- Readings: for each week generate 2-3 structured module readings in this format: "Module Title | Author/Source | Key concepts covered: concept1, concept2, concept3 | Estimated read time: X min". These should read like Quicademy-style instructional modules — named, purposeful, and tied to that week's learning goals.`
+    : `- Readings must be specific real titles/authors/URLs, appropriate for ${params.weekCount}-week pacing`
+
   return `Return a JSON object only — nothing before { or after }:
 
 {
@@ -254,9 +288,9 @@ export function buildGenerationPrompt(params: {
     {
       "week_number": 1,
       "topic": "Specific topic name",
-      "description": "2-3 sentences on what students will learn",
-      "concept_overview": "3-4 sentence foundational explanation of the core concept this week — written for a student encountering it for the first time. Explain the key idea, why it matters, and how it connects to the course arc. This is distinct from the assignment description.",
-      "readings": ["Author, Title, Chapter or URL — be specific, no placeholders"],
+      "description": "2-3 sentences on what students will learn and do",
+      "concept_overview": "3-4 sentence foundational explanation written for a student encountering this topic for the first time. Explain the core idea, why it matters, and how it connects to the course arc.",
+      "readings": ["Specific reading or module citation"],
       "assignments_due": []
     }
   ],
@@ -270,14 +304,7 @@ export function buildGenerationPrompt(params: {
       "description": "4+ sentences: what to do, deliverables, submission format, grading criteria"
     }
   ],
-  "python_activities": [
-    {
-      "title": "Activity title",
-      "week": "Week 4",
-      "description": "What students build and learn",
-      "code": "# Colab-ready starter code with # YOUR CODE HERE gaps"
-    }
-  ],
+  ${activitySchema}
   "realworld_items": [
     {
       "title": "Item title",
@@ -306,11 +333,11 @@ Style: ${params.styleContext || 'Professional academic voice.'}${buildToolContex
 Rules:
 - Generate EXACTLY ${params.weekCount} weeks — no more, no less
 - Week numbers run from 1 to ${params.weekCount}
-- Assignments: scale to the term length — ${params.weekCount <= 8 ? '4-6 assignments for a short/summer term' : '6-8 assignments for a full semester'}
+- Assignments: scale to term length — ${params.weekCount <= 8 ? '4-6 for a short/summer term' : '6-8 for a full semester'}
 - concept_overview for EVERY week — foundational, student-facing, 3-4 sentences
-- Readings must be specific real titles/authors/URLs, appropriate for ${params.weekCount}-week pacing
-- ${params.options.news ? 'realworld_items: one per week, specific 2024-2026 examples' : 'realworld_items: []'}
-- ${params.options.python ? 'python_activities: ' + (params.weekCount <= 8 ? '1-2' : '2-3') + ' with actual runnable code' : 'python_activities: []'}
+- ${readingInstruction}
+- ${params.options.news ? 'realworld_items: one per week, specific 2024-2026 examples with real sources' : 'realworld_items: []'}
+- ${activityRule}
 - ${params.options.bloom ? 'blooms: realistic scores based on the actual assignment mix' : 'blooms: []'}
 - JSON only. Start with {. End with }.`
 }

@@ -175,6 +175,7 @@ export interface GenerateRequest {
     bloom: boolean
     diff: boolean
   }
+  activityMode: 'python' | 'scenario' | 'none'  // what kind of activities to generate
   professorName: string
   institution: string
   toolPreferences?: ToolPreferences | null

@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     const session = { user }
 
     const body: GenerateRequest = await req.json()
-    const { title, number, description, level, mode, startDate, endDate, holidays, pattern, styleContext, options, professorName, institution, toolPreferences } = body
+    const { title, number, description, level, mode, startDate, endDate, holidays, pattern, styleContext, options, activityMode, professorName, institution, toolPreferences } = body
 
     // ── Calculate exact week count from dates ──
     function calcWeekCount(start: string, end: string): number {
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
       system: buildGenerationSystemPrompt(professorName, institution),
       messages: [{
         role: 'user',
-        content: buildGenerationPrompt({ title, number, description, level, mode, startDate, endDate, holidays, pattern, styleContext, professorName, institution, options, toolPreferences, weekCount }),
+        content: buildGenerationPrompt({ title, number, description, level, mode, startDate, endDate, holidays, pattern, styleContext, professorName, institution, options, toolPreferences, weekCount, activityMode: activityMode || 'python' }),
       }],
     })
 

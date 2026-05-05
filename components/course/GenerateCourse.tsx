@@ -10,16 +10,20 @@ interface Props {
   profile: Pick<Profile, 'full_name' | 'institution' | 'department'> | null
 }
 
-const STEPS = [
-  ['Analyzing your uploaded courses', 'Inferring teaching style from materials', 18],
-  ['Building teaching profile', 'Detecting voice, assignment patterns, philosophy', 34],
-  ['Mapping semester timeline', 'Distributing weeks across the semester', 50],
-  ['Generating course modules', 'Creating week-by-week topics', 64],
-  ['Designing assignments', 'Building assignments in your style', 76],
-  ['Injecting real-world examples', 'Sourcing current datasets and news', 88],
-  ['Generating Python activities', 'Creating interactive Colab notebooks', 95],
-  ['Finalizing', "Running Bloom's check and packaging", 100],
-] as const
+  const STEPS = [
+    ['Analyzing your uploaded courses', 'Inferring teaching style from materials', 18],
+    ['Building teaching profile', 'Detecting voice, assignment patterns, philosophy', 34],
+    ['Mapping semester timeline', 'Distributing weeks across the semester', 50],
+    ['Generating course modules', 'Creating week-by-week topics and concept overviews', 64],
+    ['Designing assignments', 'Building assignments in your style', 76],
+    ['Injecting real-world examples', 'Sourcing current datasets and news', 88],
+    activityMode === 'python'
+      ? ['Generating Python activities', 'Creating interactive Colab notebooks', 95]
+      : activityMode === 'scenario'
+      ? ['Generating scenario activities', 'Writing role-play detective exercises', 95]
+      : ['Generating structured readings', 'Writing Quicademy-style module content', 95],
+    ['Finalizing', "Running Bloom's check and packaging", 100],
+  ] as const
 
 const PYTHON_ENVS = ['Google Colab', 'Jupyter Notebook', 'JupyterLab', 'VS Code', 'Local Python', 'None']
 const SUBMISSION_FORMATS = ['Google Colab Link', 'Jupyter Notebook (.ipynb)', 'PDF', 'Word Document', 'Canvas Quiz', 'GitHub Repository', 'Any']
@@ -48,7 +52,8 @@ export default function GenerateCourse({ courses, profile }: Props) {
     mode: 'Online Asynchronous', startDate: '', endDate: '', holidays: '',
     pattern: 'Dossier / Portfolio', styleSource: 'all',
   })
-  const [options, setOptions] = useState({ news: true, python: true, bloom: true, diff: false })
+  const [options, setOptions] = useState({ news: true, bloom: true, diff: false })
+  const [activityMode, setActivityMode] = useState<'python' | 'scenario' | 'none'>('python')
   const [toolPrefs, setToolPrefs] = useState<ToolPreferences>({
     python_env: 'Google Colab',
     gis_software: 'QGIS',
@@ -92,7 +97,8 @@ export default function GenerateCourse({ courses, profile }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
-          options,
+          options: { ...options, python: activityMode === 'python' },
+          activityMode,
           toolPreferences: toolPrefs,
           styleContext,
           professorName: profile?.full_name || 'Professor',
@@ -251,12 +257,59 @@ export default function GenerateCourse({ courses, profile }: Props) {
             </div>
           </div>
         </div>
-        <p className="cf-mono" style={{ ...labelStyle, marginBottom: 9 }}>Include in generation</p>
+
+        {/* Activity Mode — replaces the old Python checkbox */}
+        <div className="field" style={{ marginBottom: 16 }}>
+          <label className="label" style={labelStyle}>🎯 Activity Type</label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+            {([
+              {
+                k: 'python' as const,
+                icon: '🐍',
+                label: 'Python / Code',
+                desc: 'Jupyter / Colab notebooks with runnable starter code and fill-in gaps',
+              },
+              {
+                k: 'scenario' as const,
+                icon: '🕵️',
+                label: 'Scenario-Based',
+                desc: 'Role-play detective exercises — students solve real problems without code',
+              },
+              {
+                k: 'none' as const,
+                icon: '✕',
+                label: 'No Activities',
+                desc: 'Readings and assignments only — no separate activity documents',
+              },
+            ] as { k: 'python' | 'scenario' | 'none'; icon: string; label: string; desc: string }[]).map(o => (
+              <div
+                key={o.k}
+                onClick={() => setActivityMode(o.k)}
+                style={{ padding: '12px 14px', border: `2px solid ${activityMode === o.k ? 'var(--cf-gold)' : 'var(--cf-line)'}`, borderRadius: 8, cursor: 'pointer', background: activityMode === o.k ? 'var(--cf-gold-pale)' : '#fff', transition: 'all .15s' }}
+              >
+                <div style={{ fontSize: 20, marginBottom: 5 }}>{o.icon}</div>
+                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 3, color: activityMode === o.k ? 'var(--cf-gold)' : 'var(--cf-ink)' }}>{o.label}</div>
+                <div style={{ fontSize: 11, color: 'var(--cf-muted)', lineHeight: 1.5 }}>{o.desc}</div>
+              </div>
+            ))}
+          </div>
+
+          {activityMode === 'python' && (
+            <div style={{ marginTop: 8, padding: '8px 12px', background: 'var(--cf-sage-pale)', border: '1px solid rgba(58,92,58,0.2)', borderRadius: 6, fontSize: 12, color: 'var(--cf-sage)' }}>
+              ✓ Uses your Python environment preference: <strong>{toolPrefs.python_env}</strong>. Activities will include runnable starter code with intentional gaps for students to fill.
+            </div>
+          )}
+          {activityMode === 'scenario' && (
+            <div style={{ marginTop: 8, padding: '8px 12px', background: 'var(--cf-gold-pale)', border: '1px solid rgba(184,134,11,0.2)', borderRadius: 6, fontSize: 12, color: 'var(--cf-ink)' }}>
+              ✓ No software required. Each activity puts students in a real-world professional role with a specific problem to solve — like your GIS Policy module. Readings will be generated as structured Quicademy-style modules.
+            </div>
+          )}
+        </div>
+
+        <p className="cf-mono" style={{ ...labelStyle, marginBottom: 9 }}>Also include</p>
         {([
-          { k: 'news', label: 'Inject current real-world examples & articles per week' },
-          { k: 'python', label: 'Generate Python interactive activities' },
-          { k: 'bloom', label: "Run Bloom's Taxonomy alignment check" },
-          { k: 'diff', label: 'Show diff view of original vs. AI-improved assignments' },
+          { k: 'news', label: '🌍 Inject current real-world examples & articles per week' },
+          { k: 'bloom', label: "🧠 Run Bloom's Taxonomy alignment check" },
         ] as { k: keyof typeof options; label: string }[]).map(o => (
           <label key={o.k} className="checkbox" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 8, cursor: 'pointer' }}>
             <input type="checkbox" checked={options[o.k]} onChange={e => setOptions(p => ({ ...p, [o.k]: e.target.checked }))} style={{ accentColor: 'var(--cf-gold)' }} />
