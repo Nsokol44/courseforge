@@ -10,21 +10,6 @@ interface Props {
   profile: Pick<Profile, 'full_name' | 'institution' | 'department'> | null
 }
 
-  const STEPS = [
-    ['Analyzing your uploaded courses', 'Inferring teaching style from materials', 18],
-    ['Building teaching profile', 'Detecting voice, assignment patterns, philosophy', 34],
-    ['Mapping semester timeline', 'Distributing weeks across the semester', 50],
-    ['Generating course modules', 'Creating week-by-week topics and concept overviews', 64],
-    ['Designing assignments', 'Building assignments in your style', 76],
-    ['Injecting real-world examples', 'Sourcing current datasets and news', 88],
-    activityMode === 'python'
-      ? ['Generating Python activities', 'Creating interactive Colab notebooks', 95]
-      : activityMode === 'scenario'
-      ? ['Generating scenario activities', 'Writing role-play detective exercises', 95]
-      : ['Generating structured readings', 'Writing Quicademy-style module content', 95],
-    ['Finalizing', "Running Bloom's check and packaging", 100],
-  ] as const
-
 const PYTHON_ENVS = ['Google Colab', 'Jupyter Notebook', 'JupyterLab', 'VS Code', 'Local Python', 'None']
 const SUBMISSION_FORMATS = ['Google Colab Link', 'Jupyter Notebook (.ipynb)', 'PDF', 'Word Document', 'Canvas Quiz', 'GitHub Repository', 'Any']
 const GIS_OPTIONS = ['QGIS', 'ArcGIS Pro', 'ArcGIS Online', 'GeoPandas only', 'None']
@@ -84,7 +69,22 @@ export default function GenerateCourse({ courses, profile }: Props) {
     setGenerating(true)
     setResult(null)
 
-    for (const [title, sub, pct] of STEPS) {
+    const steps = [
+      ['Analyzing your uploaded courses', 'Inferring teaching style from materials', 18],
+      ['Building teaching profile', 'Detecting voice, assignment patterns, philosophy', 34],
+      ['Mapping semester timeline', 'Distributing weeks across the semester', 50],
+      ['Generating course modules', 'Creating week-by-week topics and concept overviews', 64],
+      ['Designing assignments', 'Building assignments in your style', 76],
+      ['Injecting real-world examples', 'Sourcing current datasets and news', 88],
+      activityMode === 'python'
+        ? ['Generating Python activities', 'Creating interactive Colab notebooks', 95]
+        : activityMode === 'scenario'
+        ? ['Generating scenario activities', 'Writing role-play detective exercises', 95]
+        : ['Finalizing readings', 'Structuring Quicademy-style modules', 95],
+      ['Finalizing', "Running Bloom's check and packaging", 100],
+    ]
+
+    for (const [title, sub, pct] of steps) {
       setStepTitle(title as string)
       setStepSub(sub as string)
       setProgress(pct as number)
