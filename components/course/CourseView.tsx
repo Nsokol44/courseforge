@@ -371,9 +371,9 @@ export default function CourseView({ course: initialCourse, profile }: Props) {
                           weekNumber={w.week_number}
                           topic={w.topic || ''}
                           courseTitle={course.title}
-                          conceptOverview={w.concept_overview}
+                          conceptOverview={w.concept_overview ?? undefined}
                           readings={w.readings}
-                          activityDescription={weekActivities[0]?.description}
+                          activityDescription={weekActivities[0]?.description ?? undefined}
                           toolPreferences={course.tool_preferences}
                           hasPythonActivity={weekActivities.length > 0}
                         />
