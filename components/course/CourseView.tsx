@@ -230,31 +230,67 @@ export default function CourseView({ course: initialCourse, profile }: Props) {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {course.weeks.map(w => (
+                {course.weeks.map(w => {
+                  // Join related data into this week card
+                  const weekLabel = `Week ${w.week_number}`
+                  const weekAssignments = (course.assignments || []).filter((a: any) =>
+                    a.week === weekLabel || a.week === String(w.week_number)
+                  )
+                  const weekRealworld = (course.realworld_items || []).filter((r: any) =>
+                    r.week === weekLabel || r.week === String(w.week_number)
+                  )
+                  const weekActivities = (course.python_activities || []).filter((p: any) =>
+                    p.week === weekLabel || p.week === String(w.week_number)
+                  )
+
+                  return (
                   <div key={w.id} className="cf-card" style={{ padding: '14px 18px' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                       <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 5 }}>
+                        {/* Week header */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                           <span className="cf-mono" style={{ fontSize: 10, color: 'var(--cf-gold)', background: 'var(--cf-gold-pale)', padding: '2px 8px', borderRadius: 4, border: '1px solid rgba(184,134,11,0.25)', flexShrink: 0 }}>
                             Week {w.week_number}
                           </span>
                           {w.dates && <span className="cf-mono" style={{ fontSize: 9, color: 'var(--cf-muted2)' }}>{w.dates}</span>}
                           <span style={{ fontWeight: 600, fontSize: 14 }}>{w.topic || '—'}</span>
                         </div>
-                        {/* Concept Overview — foundational anchor for the week */}
+
+                        {/* Concept Overview */}
                         {w.concept_overview && (
-                          <div style={{ background: 'var(--cf-paper2)', border: '1px solid var(--cf-line)', borderLeft: '3px solid var(--cf-gold)', borderRadius: '0 7px 7px 0', padding: '10px 14px', marginBottom: 10 }}>
+                          <div style={{ background: 'var(--cf-paper2)', border: '1px solid var(--cf-line)', borderLeft: '3px solid var(--cf-gold)', borderRadius: '0 7px 7px 0', padding: '10px 14px', marginBottom: 12 }}>
                             <div className="cf-mono" style={{ fontSize: 9, color: 'var(--cf-gold)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 5 }}>Concept Overview</div>
-                            <p style={{ fontSize: 13, color: 'var(--cf-ink)', lineHeight: 1.7 }}>{w.concept_overview}</p>
+                            <p style={{ fontSize: 13, color: 'var(--cf-ink)', lineHeight: 1.7, margin: 0 }}>{w.concept_overview}</p>
                           </div>
                         )}
                         {w.week_description && !w.concept_overview && (
-                          <p style={{ fontSize: 12.5, color: 'var(--cf-muted)', lineHeight: 1.6, marginBottom: 7 }}>{w.week_description}</p>
+                          <p style={{ fontSize: 12.5, color: 'var(--cf-muted)', lineHeight: 1.6, marginBottom: 8 }}>{w.week_description}</p>
                         )}
+
+                        {/* Assignments for this week */}
+                        {weekAssignments.length > 0 && (
+                          <div style={{ marginBottom: 10 }}>
+                            <div className="cf-mono" style={{ fontSize: 9, color: 'var(--cf-muted2)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Assignments</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              {weekAssignments.map((a: any) => (
+                                <div key={a.id} style={{ padding: '9px 12px', background: '#fff', border: '1px solid var(--cf-line)', borderRadius: 7 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: a.description ? 5 : 0 }}>
+                                    <span className={`cf-badge cf-badge-${(a.type||'').toLowerCase() === 'lab' ? 'lab' : (a.type||'').toLowerCase() === 'discussion' ? 'disc' : (a.type||'').toLowerCase() === 'reflection' ? 'refl' : 'proj'}`}>{a.type || 'Assignment'}</span>
+                                    <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>{a.title}</span>
+                                    {a.points > 0 && <span style={{ fontFamily: 'var(--cf-mono)', fontSize: 10, color: 'var(--cf-gold)', background: 'var(--cf-gold-pale)', padding: '1px 7px', borderRadius: 3, flexShrink: 0 }}>{a.points} pts</span>}
+                                  </div>
+                                  {a.description && <p style={{ fontSize: 12, color: 'var(--cf-muted)', lineHeight: 1.65, margin: 0 }}>{a.description}</p>}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Readings */}
                         {(w.readings?.length ?? 0) > 0 && (
-                          <div style={{ marginBottom: 6 }}>
-                            <span className="cf-mono" style={{ fontSize: 9, color: 'var(--cf-muted2)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Readings</span>
-                            <ul style={{ marginTop: 3, paddingLeft: 16 }}>
+                          <div style={{ marginBottom: 10 }}>
+                            <div className="cf-mono" style={{ fontSize: 9, color: 'var(--cf-muted2)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>Readings</div>
+                            <ul style={{ margin: 0, paddingLeft: 16 }}>
                               {w.readings.map((r: any, i: number) => {
                                 const text = typeof r === 'string' ? r : [r.author, r.title, r.source, r.description].filter(Boolean).join(' — ')
                                 const isUrl = text.startsWith('http')
@@ -267,13 +303,16 @@ export default function CourseView({ course: initialCourse, profile }: Props) {
                             </ul>
                           </div>
                         )}
+
+                        {/* Reinforcement Resources */}
                         {(w.reinforcement_materials?.length ?? 0) > 0 && (
-                          <div style={{ marginBottom: 6 }}>
-                            <span className="cf-mono" style={{ fontSize: 9, color: 'var(--cf-muted2)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Resources</span>
-                            <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                              {w.reinforcement_materials.map((m, i) => (
-                                <a key={i} href={m.url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, textDecoration: 'none', padding: '3px 8px', background: 'var(--cf-gold-pale)', borderRadius: 5, border: '1px solid rgba(184,134,11,0.2)', width: 'fit-content' }}>
-                                  <span>{m.type === 'video' ? '▶' : m.type === 'tool' ? '🔧' : m.type === 'dataset' ? '📊' : '📄'}</span>
+                          <div style={{ marginBottom: 10 }}>
+                            <div className="cf-mono" style={{ fontSize: 9, color: 'var(--cf-muted2)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>Resources</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                              {w.reinforcement_materials.map((m: any, i: number) => (
+                                <a key={i} href={m.url} target="_blank" rel="noopener noreferrer"
+                                  style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, textDecoration: 'none', padding: '5px 9px', background: 'var(--cf-gold-pale)', borderRadius: 6, border: '1px solid rgba(184,134,11,0.2)', width: 'fit-content' }}>
+                                  <span>{m.type === 'video' ? '▶' : m.type === 'tool' ? '🔧' : m.type === 'dataset' ? '📊' : m.type === 'exercise' ? '✏️' : '📄'}</span>
                                   <span style={{ color: 'var(--cf-ink)', fontWeight: 500 }}>{m.title}</span>
                                   <span style={{ color: 'var(--cf-gold)' }}>↗</span>
                                 </a>
@@ -281,15 +320,49 @@ export default function CourseView({ course: initialCourse, profile }: Props) {
                             </div>
                           </div>
                         )}
-                        {(w.assignments?.length ?? 0) > 0 && (
+
+                        {/* Activities for this week */}
+                        {weekActivities.length > 0 && (
+                          <div style={{ marginBottom: 10 }}>
+                            <div className="cf-mono" style={{ fontSize: 9, color: 'var(--cf-muted2)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Activities</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              {weekActivities.map((p: any) => {
+                                const isScenario = !p.code || p.code.trim() === ''
+                                return (
+                                  <div key={p.id} style={{ padding: '9px 12px', background: isScenario ? 'var(--cf-gold-pale)' : '#f0f7f0', border: `1px solid ${isScenario ? 'rgba(184,134,11,0.25)' : 'rgba(58,92,58,0.2)'}`, borderRadius: 7 }}>
+                                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: p.description ? 5 : 0 }}>
+                                      {isScenario ? '🕵️' : '🐍'} {p.title}
+                                    </div>
+                                    {p.description && <p style={{ fontSize: 12, color: 'var(--cf-muted)', lineHeight: 1.65, margin: 0, whiteSpace: 'pre-wrap' }}>{p.description}</p>}
+                                    {p.code && <pre style={{ marginTop: 8, fontSize: 11, background: '#1a1a2e', color: '#a8d8a8', padding: '10px 12px', borderRadius: 5, overflowX: 'auto', whiteSpace: 'pre-wrap' }}>{p.code}</pre>}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Real-World Examples for this week */}
+                        {weekRealworld.length > 0 && (
                           <div>
-                            <span className="cf-mono" style={{ fontSize: 9, color: 'var(--cf-muted2)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Due</span>
-                            <div style={{ marginTop: 3, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                              {w.assignments.map((a, i) => <span key={i} className="cf-badge cf-badge-proj">{a}</span>)}
+                            <div className="cf-mono" style={{ fontSize: 9, color: 'var(--cf-muted2)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>Real-World Examples</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                              {weekRealworld.map((r: any) => (
+                                <div key={r.id} style={{ padding: '8px 12px', background: '#fff', border: '1px solid var(--cf-line)', borderLeft: '3px solid var(--cf-gold)', borderRadius: '0 7px 7px 0' }}>
+                                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 3 }}>
+                                    <span style={{ fontWeight: 600, fontSize: 12.5 }}>{r.title}</span>
+                                    {r.url && <a href={r.url} target="_blank" rel="noopener noreferrer" style={{ fontFamily: 'var(--cf-mono)', fontSize: 9, color: 'var(--cf-gold)', textDecoration: 'none', flexShrink: 0 }}>{r.source} ↗</a>}
+                                    {!r.url && r.source && <span style={{ fontFamily: 'var(--cf-mono)', fontSize: 9, color: 'var(--cf-muted2)' }}>{r.source}</span>}
+                                  </div>
+                                  {r.description && <p style={{ fontSize: 12, color: 'var(--cf-muted)', lineHeight: 1.6, margin: 0 }}>{r.description}</p>}
+                                </div>
+                              ))}
                             </div>
                           </div>
                         )}
                       </div>
+
+                      {/* Week actions */}
                       <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
                         <EnrichPanel
                           courseId={course.id}
@@ -303,7 +376,8 @@ export default function CourseView({ course: initialCourse, profile }: Props) {
                       </div>
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
