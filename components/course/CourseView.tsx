@@ -9,6 +9,7 @@ import CoursePreferences from '@/components/course/CoursePreferences'
 import AssignmentEditor from '@/components/course/AssignmentEditor'
 import WeekEditor from '@/components/course/WeekEditor'
 import CourseUploadMaterials from '@/components/course/CourseUploadMaterials'
+import WeekFileGenerator from '@/components/course/WeekFileGenerator'
 import toast from 'react-hot-toast'
 import type { Course, Profile, ParsedAIData, CourseContext, Week, Assignment, ToolPreferences } from '@/types'
 
@@ -363,7 +364,19 @@ export default function CourseView({ course: initialCourse, profile }: Props) {
                       </div>
 
                       {/* Week actions */}
-                      <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+                      <div style={{ display: 'flex', gap: 5, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        <WeekFileGenerator
+                          courseId={course.id}
+                          weekId={w.id}
+                          weekNumber={w.week_number}
+                          topic={w.topic || ''}
+                          courseTitle={course.title}
+                          conceptOverview={w.concept_overview}
+                          readings={w.readings}
+                          activityDescription={weekActivities[0]?.description}
+                          toolPreferences={course.tool_preferences}
+                          hasPythonActivity={weekActivities.length > 0}
+                        />
                         <EnrichPanel
                           courseId={course.id}
                           totalWeeks={1}
