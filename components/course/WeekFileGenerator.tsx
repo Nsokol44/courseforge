@@ -10,7 +10,7 @@ interface Props {
   weekNumber: number
   topic: string
   courseTitle: string
-  conceptOverview?: string | null
+  conceptOverview?: string
   readings?: string[]
   activityDescription?: string
   toolPreferences?: ToolPreferences | null
@@ -29,39 +29,55 @@ export default function WeekFileGenerator({
   const pythonEnv = toolPreferences?.python_env || 'Google Colab'
   const noPython = pythonEnv === 'None'
 
+  function downloadBlob(content: string, filename: string, mime: string) {
+    const blob = new Blob([content], { type: mime })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  async function callAPI(endpoint: string, body: object): Promise<any> {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    const rawText = await res.text()
+    let data: any
+    try {
+      data = JSON.parse(rawText)
+    } catch {
+      const preview = rawText.replace(/<[^>]+>/g, '').trim().slice(0, 150)
+      throw new Error(`Server returned non-JSON: ${preview || `HTTP ${res.status}`}`)
+    }
+    if (!res.ok) throw new Error(data.error || `Server error ${res.status}`)
+    return data
+  }
+
   async function generateNotebook() {
     setGenNotebook(true)
     setShowMenu(false)
     try {
-      const res = await fetch('/api/generate-notebook', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          courseId, weekId, weekNumber, topic, courseTitle,
-          activityDescription: activityDescription || topic,
-          toolPreferences,
-        }),
+      const data = await callAPI('/api/generate-notebook', {
+        courseId, weekId, weekNumber, topic, courseTitle,
+        activityDescription: activityDescription || topic,
+        toolPreferences,
       })
-      const rawText = await res.text()
-      let data: any
-      try { data = JSON.parse(rawText) } catch {
-        throw new Error(`Server error: ${rawText.replace(/<[^>]+>/g, '').slice(0, 100)}`)
-      }
-      if (!res.ok) throw new Error(data.error || `Server error ${res.status}`)
-
-      // Download as .ipynb
-      const blob = new Blob([JSON.stringify(data.notebook, null, 2)], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      const slug = `${topic.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_week${weekNumber}`
-      a.download = `${slug}.ipynb`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-      toast.success(`Notebook downloaded: ${a.download}`)
+      if (!data.notebook) throw new Error('No notebook returned from server')
+      const slug = topic.replace(/[^a-z0-9]/gi, '_').toLowerCase()
+      downloadBlob(
+        JSON.stringify(data.notebook, null, 2),
+        `Week${weekNumber}_${slug}.ipynb`,
+        'application/json'
+      )
+      toast.success('Notebook downloaded — open in Google Colab or Jupyter')
     } catch (err: any) {
+      console.error('Notebook generation error:', err)
       toast.error(`Notebook failed: ${err.message}`)
     } finally {
       setGenNotebook(false)
@@ -72,32 +88,20 @@ export default function WeekFileGenerator({
     setGenReading(true)
     setShowMenu(false)
     try {
-      const res = await fetch('/api/generate-reading', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          weekNumber, topic, courseTitle, conceptOverview, readings,
-        }),
+      const data = await callAPI('/api/generate-reading', {
+        weekNumber, topic, courseTitle, conceptOverview, readings,
       })
-      const rawText = await res.text()
-      let data: any
-      try { data = JSON.parse(rawText) } catch {
-        throw new Error(`Server error: ${rawText.replace(/<[^>]+>/g, '').slice(0, 100)}`)
-      }
-      if (!res.ok) throw new Error(data.error || `Server error ${res.status}`)
-
-      // Open in new tab — professor can use browser Print → Save as PDF
-      const blob = new Blob([data.html], { type: 'text/html' })
-      const url = URL.createObjectURL(blob)
-      const tab = window.open(url, '_blank')
-      if (tab) {
-        // Small delay then trigger print dialog
-        setTimeout(() => {
-          try { tab.print() } catch {}
-        }, 800)
-      }
-      toast.success('Reading opened — use Print → Save as PDF to download')
+      if (!data.html) throw new Error('No HTML returned from server')
+      const slug = topic.replace(/[^a-z0-9]/gi, '_').toLowerCase()
+      // Download as .html — open in browser and print to PDF (no popup blocker issue)
+      downloadBlob(
+        data.html,
+        `Week${weekNumber}_${slug}_reading.html`,
+        'text/html'
+      )
+      toast.success('Reading downloaded — open the .html file and use File → Print → Save as PDF')
     } catch (err: any) {
+      console.error('Reading generation error:', err)
       toast.error(`Reading failed: ${err.message}`)
     } finally {
       setGenReading(false)
@@ -123,29 +127,24 @@ export default function WeekFileGenerator({
 
       {showMenu && !isLoading && (
         <>
-          {/* Backdrop */}
-          <div
-            style={{ position: 'fixed', inset: 0, zIndex: 98 }}
-            onClick={() => setShowMenu(false)}
-          />
-          {/* Dropdown */}
-          <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 4, background: '#fff', border: '1px solid var(--cf-line)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', zIndex: 99, minWidth: 230, overflow: 'hidden' }}>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setShowMenu(false)} />
+          <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 4, background: '#fff', border: '1px solid var(--cf-line)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.12)', zIndex: 99, minWidth: 240, overflow: 'hidden' }}>
             <div className="cf-mono" style={{ fontSize: 9, color: 'var(--cf-muted2)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '8px 14px 4px' }}>
-              Week {weekNumber} — {topic.slice(0, 30)}
+              Week {weekNumber} — {topic.slice(0, 32)}{topic.length > 32 ? '…' : ''}
             </div>
 
             {!noPython && (
               <button
                 onClick={generateNotebook}
-                style={{ width: '100%', textAlign: 'left', padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'flex-start', gap: 9, borderBottom: '1px solid var(--cf-line)' }}
+                style={{ width: '100%', textAlign: 'left', padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--cf-line)', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'flex-start', gap: 9 }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'var(--cf-paper2)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'none')}
               >
                 <span style={{ fontSize: 18, flexShrink: 0 }}>🐍</span>
                 <div>
                   <div style={{ fontWeight: 600, color: 'var(--cf-ink)', marginBottom: 1 }}>Python Notebook (.ipynb)</div>
-                  <div style={{ fontSize: 11, color: 'var(--cf-muted)' }}>
-                    Full {pythonEnv} notebook with synthetic data, analysis, maps, and practice questions
+                  <div style={{ fontSize: 11, color: 'var(--cf-muted)', lineHeight: 1.4 }}>
+                    Colab-ready notebook with synthetic data, analysis, maps, and practice questions
                   </div>
                 </div>
               </button>
@@ -159,9 +158,9 @@ export default function WeekFileGenerator({
             >
               <span style={{ fontSize: 18, flexShrink: 0 }}>📄</span>
               <div>
-                <div style={{ fontWeight: 600, color: 'var(--cf-ink)', marginBottom: 1 }}>Reading Handout (PDF)</div>
-                <div style={{ fontSize: 11, color: 'var(--cf-muted)' }}>
-                  Quicademy-style structured reading: intro → concepts → case studies → key terms
+                <div style={{ fontWeight: 600, color: 'var(--cf-ink)', marginBottom: 1 }}>Reading Handout (.html)</div>
+                <div style={{ fontSize: 11, color: 'var(--cf-muted)', lineHeight: 1.4 }}>
+                  Quicademy-style module: intro → concepts → case studies → key terms. Open and print to PDF.
                 </div>
               </div>
             </button>

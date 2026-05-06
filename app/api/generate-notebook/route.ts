@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteClient } from '@/lib/supabase-server'
 import { anthropic, MODEL } from '@/lib/ai'
 
+export const maxDuration = 60
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = createRouteClient()
@@ -64,7 +66,7 @@ JSON only. Start with {. End with }.`
 
     const response = await anthropic.messages.create({
       model: MODEL,
-      max_tokens: 8000,
+      max_tokens: 4000,  // Notebooks are code-heavy; 4000 generates a solid 6-8 cell notebook
       system: `You are an expert GIS educator generating Jupyter notebooks for university courses. 
 You always return valid JSON representing a complete .ipynb file. 
 No markdown fences, no text outside the JSON object.
@@ -74,6 +76,10 @@ Use GeoPandas, Matplotlib, Shapely, and NumPy. Create fully synthetic spatial da
     })
 
     const raw = (response.content.find(b => b.type === 'text') as any)?.text || ''
+    if (!raw) {
+      console.error('generate-notebook: empty response from Claude')
+      return NextResponse.json({ error: 'AI returned empty response. Please try again.' }, { status: 422 })
+    }
 
     // Extract and validate the notebook JSON
     let notebook: any

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteClient } from '@/lib/supabase-server'
 import { anthropic, MODEL } from '@/lib/ai'
 
+export const maxDuration = 60
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = createRouteClient()
@@ -78,7 +80,7 @@ Rules:
 
     const response = await anthropic.messages.create({
       model: MODEL,
-      max_tokens: 6000,
+      max_tokens: 4000,  // 6000 risks Vercel's 10s function timeout; 4000 is enough for a full module
       system: `You are an expert GIS educator writing instructional reading modules for university students. 
 Write in a clear, engaging academic voice similar to Quicademy or ESRI training materials.
 Return valid JSON only — no markdown fences, no text outside the JSON object.`,
@@ -86,6 +88,10 @@ Return valid JSON only — no markdown fences, no text outside the JSON object.`
     })
 
     const raw = (response.content.find(b => b.type === 'text') as any)?.text || ''
+    if (!raw) {
+      console.error('generate-reading: empty response from Claude')
+      return NextResponse.json({ error: 'AI returned empty response. Please try again.' }, { status: 422 })
+    }
 
     let readingData: any
     try {
