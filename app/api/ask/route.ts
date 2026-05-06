@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteClient } from '@/lib/supabase-server'
-import { anthropic, MODEL, MAX_TOKENS, buildSystemPrompt, buildToolContext, parseAIResponse, QUICK_PROMPTS } from '@/lib/ai'
+import { MODEL, MAX_TOKENS, buildSystemPrompt, buildToolContext, parseAIResponse, QUICK_PROMPTS } from '@/lib/ai'
+import { callAI } from '@/lib/ai-provider'
+import type { AIProviderConfig } from '@/lib/ai-provider'
 import type { AskRequest } from '@/types'
 
 export async function POST(req: NextRequest) {
@@ -39,14 +41,19 @@ export async function POST(req: NextRequest) {
 
     const systemPrompt = buildSystemPrompt(courseContext, courseData?.tool_preferences) + fileContext
 
-    const response = await anthropic.messages.create({
-      model: MODEL,
-      max_tokens: MAX_TOKENS,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: resolvedPrompt }],
-    })
+    // Load AI provider preference
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('ai_provider, gemini_api_key, gemini_model')
+      .eq('id', user.id)
+      .single()
+    const aiConfig = {
+      provider: (profileData?.ai_provider || 'claude') as 'claude' | 'gemini',
+      geminiApiKey: profileData?.gemini_api_key,
+      geminiModel: profileData?.gemini_model,
+    }
 
-    const text = (response.content.find(b => b.type === 'text') as any)?.text || 'No response.'
+    const text = await callAI({ system: systemPrompt, prompt: resolvedPrompt, maxTokens: MAX_TOKENS, config: aiConfig }) || 'No response.'
     const parsedData = parseAIResponse(text, resolvedPrompt)
 
     return NextResponse.json({ text, parsedData })

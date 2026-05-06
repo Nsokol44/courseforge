@@ -8,6 +8,9 @@ export interface Profile {
   institution: string | null
   department: string | null
   title: string | null
+  ai_provider: 'claude' | 'gemini' | null
+  gemini_api_key: string | null
+  gemini_model: string | null
   created_at: string
 }
 

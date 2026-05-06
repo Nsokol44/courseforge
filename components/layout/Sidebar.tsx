@@ -53,6 +53,7 @@ export default function Sidebar({ profile, courses, userEmail }: Props) {
     { href: '/dashboard', label: 'Dashboard', icon: '⊞' },
     { href: '/dashboard/generate', label: 'Generate Course', icon: '✦' },
     { href: '/dashboard/export', label: 'Export', icon: '↓' },
+    { href: '/dashboard/settings', label: 'Settings', icon: '⚙' },
   ]
 
   return (

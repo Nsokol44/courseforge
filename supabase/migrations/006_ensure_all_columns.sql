@@ -22,3 +22,9 @@ alter table public.realworld_items
 
 -- (Already in 001, but safe to repeat)
 -- assignments: no extra columns needed beyond what 001 creates
+
+-- Add AI provider settings to profiles
+alter table public.profiles
+  add column if not exists ai_provider text default 'claude',
+  add column if not exists gemini_api_key text,
+  add column if not exists gemini_model text default 'gemini-3.1-flash-lite-preview';

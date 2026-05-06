@@ -10,6 +10,7 @@ import AssignmentEditor from '@/components/course/AssignmentEditor'
 import WeekEditor from '@/components/course/WeekEditor'
 import CourseUploadMaterials from '@/components/course/CourseUploadMaterials'
 import WeekFileGenerator from '@/components/course/WeekFileGenerator'
+import PromptGenerator from '@/components/course/PromptGenerator'
 import toast from 'react-hot-toast'
 import type { Course, Profile, ParsedAIData, CourseContext, Week, Assignment, ToolPreferences } from '@/types'
 
@@ -365,6 +366,16 @@ export default function CourseView({ course: initialCourse, profile }: Props) {
 
                       {/* Week actions */}
                       <div style={{ display: 'flex', gap: 5, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        <PromptGenerator
+                          weekNumber={w.week_number}
+                          topic={w.topic || ''}
+                          courseTitle={course.title}
+                          courseNumber={course.number ?? undefined}
+                          conceptOverview={w.concept_overview ?? undefined}
+                          readings={w.readings}
+                          activityDescription={weekActivities[0]?.description ?? undefined}
+                          toolPreferences={course.tool_preferences}
+                        />
                         <WeekFileGenerator
                           courseId={course.id}
                           weekId={w.id}

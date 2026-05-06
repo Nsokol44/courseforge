@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteClient } from '@/lib/supabase-server'
-import { anthropic, MODEL, extractJSON, buildToolContext } from '@/lib/ai'
+import { extractJSON, buildToolContext } from '@/lib/ai'
+import { callAI } from '@/lib/ai-provider'
 import type { EnrichRequest, EnrichWeekResult } from '@/types'
 
 interface EnrichWeekRequest {
