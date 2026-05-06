@@ -79,24 +79,27 @@ export async function POST(req: NextRequest) {
 
     const toolCtx = buildToolContext(toolPreferences)
 
-    // ── Call Claude ──
+    // ── Load AI provider preference and call AI ──
     let raw = '{}'
     try {
-      const response = await anthropic.messages.create({
-        model: MODEL,
-        max_tokens: 1500,
+      const { data: profData } = await supabase
+        .from('profiles').select('ai_provider, gemini_api_key, gemini_model').eq('id', user.id).single()
+      const aiCfg = {
+        provider: (profData?.ai_provider || 'claude') as 'claude' | 'gemini',
+        geminiApiKey: profData?.gemini_api_key,
+        geminiModel: profData?.gemini_model,
+      }
+      raw = await callAI({
         system: `You are CourseForge AI. Respond with a JSON object only — no markdown fences, no text before { or after }.${toolCtx}`,
-        messages: [{
-          role: 'user',
-          content: buildWeekPrompt({ weekNumber, topic, weekDescription: weekDescription || null,
-            courseTitle, courseDescription: courseDescription || null, styleProfile,
-            existingAssignments, allTopics, options }),
-        }],
-      })
-      raw = (response.content.find(b => b.type === 'text') as any)?.text || '{}'
-    } catch (claudeErr: any) {
-      console.error(`Claude error for week ${weekNumber}:`, claudeErr.message)
-      return NextResponse.json({ error: `AI error: ${claudeErr.message}` }, { status: 502 })
+        prompt: buildWeekPrompt({ weekNumber, topic, weekDescription: weekDescription || null,
+          courseTitle, courseDescription: courseDescription || null, styleProfile,
+          existingAssignments, allTopics, options }),
+        maxTokens: 1500,
+        config: aiCfg,
+      }) || '{}'
+    } catch (aiErr: any) {
+      console.error(`AI error for week ${weekNumber}:`, aiErr.message)
+      return NextResponse.json({ error: `AI error: ${aiErr.message}` }, { status: 502 })
     }
 
     let weekData: any = { assignments: [], readings: [], reinforcement_materials: [], realworld: [] }

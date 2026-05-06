@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteClient } from '@/lib/supabase-server'
-import { MODEL, MAX_TOKENS, buildSystemPrompt, buildToolContext, parseAIResponse, QUICK_PROMPTS } from '@/lib/ai'
+import { MAX_TOKENS, buildSystemPrompt, buildToolContext, parseAIResponse, QUICK_PROMPTS } from '@/lib/ai'
 import { callAI } from '@/lib/ai-provider'
 import type { AIProviderConfig } from '@/lib/ai-provider'
 import type { AskRequest } from '@/types'
