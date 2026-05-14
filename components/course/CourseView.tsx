@@ -12,6 +12,7 @@ import CourseUploadMaterials from '@/components/course/CourseUploadMaterials'
 import WeekFileGenerator from '@/components/course/WeekFileGenerator'
 import PromptGenerator from '@/components/course/PromptGenerator'
 import WeekMerger from '@/components/course/WeekMerger'
+import AssignmentsTab from '@/components/course/AssignmentsTab'
 import toast from 'react-hot-toast'
 import type { Course, Profile, ParsedAIData, CourseContext, Week, Assignment, ToolPreferences } from '@/types'
 
@@ -420,56 +421,17 @@ export default function CourseView({ course: initialCourse, profile }: Props) {
 
         {/* ── ASSIGNMENTS ── */}
         {activeTab === 'assignments' && (
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <div style={{ fontSize: 12.5, color: 'var(--cf-muted)' }}>
-                {course.assignments?.length || 0} assignments
-                {totalPoints > 0 && <span style={{ marginLeft: 10, color: 'var(--cf-gold)', fontFamily: 'var(--cf-mono)', fontSize: 11 }}>{totalPoints} pts total</span>}
-              </div>
-              <button className="button is-small is-ink" onClick={() => setEditingAssignment('new')}>+ New Assignment</button>
-            </div>
-
-            {!course.assignments?.length ? (
-              <div style={{ textAlign: 'center', padding: 40, color: 'var(--cf-muted)', fontSize: 13 }}>
-                No assignments yet. Click <strong>+ New Assignment</strong> or use <strong>Deep Enrich</strong> to generate them.
-              </div>
-            ) : (
-              <div>
-                {course.assignments.map(a => (
-                  <div key={a.id} className="cf-card">
-                    <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 5 }}>{a.title}</div>
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
-                          <span className={`cf-badge cf-badge-${a.type?.toLowerCase() === 'lab' ? 'lab' : a.type?.toLowerCase() === 'discussion' ? 'disc' : a.type?.toLowerCase() === 'reflection' ? 'refl' : 'proj'}`}>{a.type || 'Assignment'}</span>
-                          {a.week && <span className="cf-mono" style={{ fontSize: 10, color: 'var(--cf-muted2)' }}>{a.week}</span>}
-                          {a.due_date && <span className="cf-mono" style={{ fontSize: 10, color: 'var(--cf-muted2)' }}>Due: {a.due_date}</span>}
-                          {a.points > 0 && (
-                            <span style={{ background: 'var(--cf-gold-pale)', border: '1px solid rgba(184,134,11,0.3)', borderRadius: 4, padding: '1px 7px', color: 'var(--cf-gold)', fontFamily: 'var(--cf-mono)', fontSize: 10, fontWeight: 600 }}>
-                              {a.points} pts
-                            </span>
-                          )}
-                        </div>
-                        {a.description && <div style={{ fontSize: 12.5, color: 'var(--cf-muted)', lineHeight: 1.65 }}>{a.description}</div>}
-                      </div>
-                      <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
-                        <button className="button is-small is-ghost" onClick={() => setEditingAssignment(a)}>✏ Edit</button>
-                        <button className="button is-small is-ghost" style={{ color: 'var(--cf-rust)' }} onClick={() => deleteAssignment(a.id)}>✕</button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-
-                {/* Points summary */}
-                {totalPoints > 0 && (
-                  <div style={{ marginTop: 14, padding: '12px 16px', background: 'var(--cf-gold-pale)', border: '1px solid rgba(184,134,11,0.25)', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 13, color: 'var(--cf-ink)' }}>Total course points</span>
-                    <span style={{ fontFamily: 'var(--cf-serif)', fontSize: 22, color: 'var(--cf-gold)', fontWeight: 500 }}>{totalPoints}</span>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          <AssignmentsTab
+            course={course}
+            totalPoints={totalPoints}
+            onNew={() => setEditingAssignment('new')}
+            onEdit={(a) => setEditingAssignment(a)}
+            onDelete={deleteAssignment}
+            onUpdate={(updated) => setCourse(prev => ({
+              ...prev,
+              assignments: prev.assignments?.map(a => a.id === updated.id ? updated : a) || []
+            }))}
+          />
         )}
 
         {/* ── ANALYSIS ── */}
