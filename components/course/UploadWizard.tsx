@@ -90,6 +90,14 @@ export default function UploadWizard() {
         const { parseIMSCC } = await import('@/lib/imscc-parser')
         const result = await parseIMSCC(imsccFile.rawBuffer)
         setImsccResult(result)
+        // Debug: log what was found
+        console.log(`[CourseForge] IMSCC parsed:`, {
+          course: result.courseName,
+          weeks: result.weeks.length,
+          assignments: result.assignments.length,
+          assignmentTitles: result.assignments.map(a => `${a.title} (${a.type}, ${a.points}pts, ${a.week})`),
+          warnings: result.warnings,
+        })
         // Pre-fill course name from imscc
         if (result.courseName && result.courseName !== 'Imported Course') {
           set('title', result.courseName)
@@ -173,7 +181,8 @@ export default function UploadWizard() {
 
       // ── Save imported assignments from imscc ──
       if (imsccResult?.assignments.length) {
-        await supabase.from('assignments').insert(
+        console.log(`[CourseForge] Saving ${imsccResult.assignments.length} assignments...`)
+        const { error: asgError } = await supabase.from('assignments').insert(
           imsccResult.assignments.map((a, i) => ({
             course_id: course.id, user_id: user.id,
             title: a.title, type: a.type,
@@ -182,6 +191,12 @@ export default function UploadWizard() {
             description: a.description, sort_order: i,
           }))
         )
+        if (asgError) {
+          console.error('[CourseForge] Assignment save error:', asgError)
+          toast.error(`Warning: assignments may not have saved — ${asgError.message}`)
+        } else {
+          console.log(`[CourseForge] ✓ ${imsccResult.assignments.length} assignments saved`)
+        }
       }
 
       const weekCount = imsccResult?.weeks.length || 0
