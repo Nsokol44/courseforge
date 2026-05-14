@@ -271,13 +271,36 @@ export default function UploadWizard() {
           </div>
 
           {/* Show imscc import preview */}
-          {imsccResult && (imsccResult.weeks.length > 0 || imsccResult.assignments.length > 0) && (
-            <div style={{ background: 'var(--cf-sage-pale)', border: '1px solid rgba(58,92,58,0.25)', borderRadius: 8, padding: '11px 14px', fontSize: 12.5, color: 'var(--cf-ink)', marginBottom: 14 }}>
-              <strong style={{ color: 'var(--cf-sage)' }}>✓ Canvas content detected</strong>
-              <div style={{ color: 'var(--cf-muted)', marginTop: 4 }}>
-                Found <strong>{imsccResult.weeks.length} weeks</strong> and <strong>{imsccResult.assignments.length} assignments</strong> in the .imscc file.
-                These will be imported automatically — you can edit everything after.
-              </div>
+          {imsccResult && (
+            <div style={{ marginBottom: 14 }}>
+              {imsccResult.weeks.length > 0 || imsccResult.assignments.length > 0 ? (
+                <div style={{ background: 'var(--cf-sage-pale)', border: '1px solid rgba(58,92,58,0.25)', borderRadius: 8, padding: '11px 14px', fontSize: 12.5, color: 'var(--cf-ink)', marginBottom: 8 }}>
+                  <strong style={{ color: 'var(--cf-sage)' }}>✓ Canvas content detected</strong>
+                  <div style={{ color: 'var(--cf-muted)', marginTop: 4 }}>
+                    Found <strong>{imsccResult.weeks.length} weeks</strong> and <strong>{imsccResult.assignments.length} assignments</strong>.
+                    These will be imported automatically — you can merge weeks and edit everything after.
+                  </div>
+                  {imsccResult.weeks.length > 16 && (
+                    <div style={{ marginTop: 7, padding: '7px 10px', background: 'rgba(184,134,11,0.1)', border: '1px solid rgba(184,134,11,0.3)', borderRadius: 6, fontSize: 12, color: 'var(--cf-ink)' }}>
+                      ⚠ <strong>{imsccResult.weeks.length} modules detected</strong> — Canvas exports each page as a separate module.
+                      After import, use the <strong>Merge Weeks</strong> tool in the Schedule tab to combine them into real course weeks.
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ background: 'var(--cf-rust-pale)', border: '1px solid rgba(139,58,42,0.25)', borderRadius: 8, padding: '11px 14px', fontSize: 12.5, marginBottom: 8 }}>
+                  <strong style={{ color: 'var(--cf-rust)' }}>⚠ Limited content detected</strong>
+                  <div style={{ color: 'var(--cf-muted)', marginTop: 4 }}>
+                    The .imscc structure was parsed but no weeks or assignments were found.
+                    The course will be created — add weeks and assignments manually or use Deep Enrich.
+                  </div>
+                </div>
+              )}
+              {(imsccResult as any).warnings?.map((w: string, i: number) => (
+                <div key={i} style={{ fontSize: 11.5, color: 'var(--cf-muted)', padding: '5px 10px', background: 'var(--cf-paper2)', borderRadius: 5, marginTop: 4 }}>
+                  ℹ {w}
+                </div>
+              ))}
             </div>
           )}
 

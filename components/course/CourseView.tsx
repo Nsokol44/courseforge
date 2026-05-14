@@ -11,6 +11,7 @@ import WeekEditor from '@/components/course/WeekEditor'
 import CourseUploadMaterials from '@/components/course/CourseUploadMaterials'
 import WeekFileGenerator from '@/components/course/WeekFileGenerator'
 import PromptGenerator from '@/components/course/PromptGenerator'
+import WeekMerger from '@/components/course/WeekMerger'
 import toast from 'react-hot-toast'
 import type { Course, Profile, ParsedAIData, CourseContext, Week, Assignment, ToolPreferences } from '@/types'
 
@@ -223,7 +224,17 @@ export default function CourseView({ course: initialCourse, profile }: Props) {
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <span style={{ fontSize: 12.5, color: 'var(--cf-muted)' }}>{course.weeks?.length || 0} weeks</span>
-              <button className="button is-small is-ink" onClick={() => setEditingWeek('new')}>+ Add Week</button>
+              <div style={{ display: 'flex', gap: 7 }}>
+                {(course.weeks?.length ?? 0) > 1 && (
+                  <WeekMerger
+                    courseId={course.id}
+                    userId={course.user_id}
+                    weeks={course.weeks || []}
+                    onComplete={() => router.refresh()}
+                  />
+                )}
+                <button className="button is-small is-ink" onClick={() => setEditingWeek('new')}>+ Add Week</button>
+              </div>
             </div>
             {!course.weeks?.length ? (
               <div style={{ textAlign: 'center', padding: 40, color: 'var(--cf-muted)', fontSize: 13 }}>
