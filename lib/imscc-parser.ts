@@ -1,7 +1,24 @@
-// ─────────────────────────────────────────
-// IMSCC (Canvas Common Cartridge) Parser v3
-// Robust multi-strategy assignment extraction
-// ─────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// IMSCC Parser v4 — built from real Canvas export inspection
+//
+// Canvas export structure (confirmed from real .imscc):
+//
+// ASSIGNMENTS: g{hash}/assignment_settings.xml
+//   → <title>, <points_possible>, <due_at>, <submission_types>
+//   → description in sibling g{hash}/{slug}.html file
+//
+// DISCUSSIONS: g{hash}.xml at root level, root element <topic>
+//   → <title>, <text> (HTML-encoded body)
+//   → topicMeta files (g{hash}.xml with <topicMeta>) are DUPLICATES — skip
+//
+// PAGES/LECTURES: wiki_content/*.html
+//   → Full HTML with readings list, video links, Colab links
+//
+// MODULE STRUCTURE: course_settings/module_meta.xml
+//   → <module> blocks with <title> and <items> listing content_type
+//   → content_type values: Attachment, WikiPage, DiscussionTopic, Assignment
+//
+// ─────────────────────────────────────────────────────────────
 
 export interface ParsedWeek {
   week_number: number
@@ -29,7 +46,6 @@ export interface IMSCCParseResult {
   warnings: string[]
 }
 
-// ── Decode XML entities ───────────────────────────────────────────────────
 function decodeEntities(s: string): string {
   if (!s) return ''
   return s
@@ -45,349 +61,261 @@ function stripHTML(html: string): string {
 function inferType(title: string): ParsedAssignment['type'] {
   const t = title.toLowerCase()
   if (t.includes('lab') || t.includes('notebook') || t.includes('colab') || t.includes('exercise')) return 'Lab'
-  if (t.includes('discussion') || t.includes('forum') || t.includes('post')) return 'Discussion'
-  if (t.includes('reflection') || t.includes('journal') || t.includes('response')) return 'Reflection'
+  if (t.includes('discussion') || t.includes('forum') || t.includes('what is') || t.includes('spatial data all')) return 'Discussion'
+  if (t.includes('reflection') || t.includes('journal')) return 'Reflection'
   if (t.includes('project') || t.includes('proposal') || t.includes('final') || t.includes('dossier') || t.includes('portfolio')) return 'Project'
-  if (t.includes('quiz') || t.includes('exam') || t.includes('test') || t.includes('check')) return 'Quiz'
+  if (t.includes('quiz') || t.includes('exam') || t.includes('test')) return 'Quiz'
   return 'Assignment'
 }
 
-function extractWeekNum(title: string): number | null {
-  const m = title.match(/(?:week|wk|module|unit|part|section|chapter)\s*(\d+)/i)
-  if (m) return parseInt(m[1])
-  const bare = title.match(/^(\d+)[:\s\-–]/)
-  if (bare && parseInt(bare[1]) <= 52) return parseInt(bare[1])
-  return null
+function tag(xml: string, tagName: string): string {
+  const m = xml.match(new RegExp(`<${tagName}[^>]*>([\\s\\S]*?)<\\/${tagName}>`, 'i'))
+  return m ? m[1].trim() : ''
 }
 
-// ── Extract all text content between two XML tags ────────────────────────
-function getTagContent(xml: string, tag: string): string | null {
-  const re = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i')
-  const m = xml.match(re)
-  return m ? m[1].trim() : null
-}
-
-// ── Get a single attribute value from a tag ─────────────────────────────
-function getAttr(tag: string, attr: string): string {
-  const re = new RegExp(`${attr}="([^"]*)"`)
-  const m = tag.match(re)
+function attr(str: string, name: string): string {
+  const m = str.match(new RegExp(`${name}="([^"]*)"`, 'i'))
   return m ? m[1] : ''
 }
 
-// ── Parse manifest: extract flat list of all <resource> entries ──────────
-interface ManifestResource {
-  id: string
-  type: string
-  href: string  // primary file path inside the zip
-}
-
-function parseManifestResources(xml: string): Map<string, ManifestResource> {
-  const map = new Map<string, ManifestResource>()
-
-  // Match each <resource ...> block
-  const re = /<resource([^>]*)>([\s\S]*?)<\/resource>/gi
-  let m: RegExpExecArray | null
-  while ((m = re.exec(xml)) !== null) {
-    const attrs = m[1]
-    const body = m[2]
-
-    const id = getAttr(attrs, 'identifier')
-    if (!id) continue
-    const type = getAttr(attrs, 'type').toLowerCase()
-
-    // href may be on the resource tag itself or in a child <file href="...">
-    let href = getAttr(attrs, 'href')
-    if (!href) {
-      const fileM = body.match(/<file\s+href="([^"]+)"/)
-      if (fileM) href = fileM[1]
-    }
-
-    map.set(id, { id, type, href })
-  }
-
-  return map
-}
-
-// ── Parse manifest: extract flat list of ALL <item> entries with resourceRef ──
-interface ManifestItem {
-  id: string
-  title: string
-  resourceRef: string  // identifierref
-  parentId: string
-  depth: number
-}
-
-function parseManifestItems(xml: string): ManifestItem[] {
-  const items: ManifestItem[] = []
-
-  // Pull out the organizations section
-  const orgM = xml.match(/<organizations[\s\S]*?>([\s\S]*?)<\/organizations>/)
-  if (!orgM) return items
-  const orgXML = orgM[1]
-
-  // Walk every <item ...> in document order (depth tracking via stack)
-  const re = /<(\/?)item([^>]*)>/g
-  let m: RegExpExecArray | null
-  const stack: string[] = ['ROOT']
-  let currentId = ''
-
-  // We need title too — scan all item blocks differently
-  // Use a simpler approach: find every item with identifier, get its title
-  const itemRe = /<item\s([^>]*)>([\s\S]*?)(?=<item\s|<\/item>)/g
-  const seen = new Set<string>()
-  let match: RegExpExecArray | null
-  while ((match = itemRe.exec(orgXML)) !== null) {
-    const attrs = match[1]
-    const body = match[2]
-    const id = getAttr(attrs, 'identifier')
-    if (!id || seen.has(id)) continue
-    seen.add(id)
-    const ref = getAttr(attrs, 'identifierref')
-    const titleM = body.match(/<title>([^<]*)<\/title>/)
-    const title = decodeEntities(titleM ? titleM[1].trim() : id)
-    items.push({ id, title, resourceRef: ref, parentId: '', depth: 0 })
-  }
-
-  return items
-}
-
-// ── Main parser ───────────────────────────────────────────────────────────
 export async function parseIMSCC(buffer: ArrayBuffer): Promise<IMSCCParseResult> {
   const JSZipGlobal = (typeof window !== 'undefined' && (window as any).JSZip)
-  if (!JSZipGlobal) throw new Error('JSZip not loaded — check layout.tsx CDN script')
+  if (!JSZipGlobal) throw new Error('JSZip not loaded')
 
   const zip = await JSZipGlobal.loadAsync(buffer)
   const warnings: string[] = []
+  const allFiles: string[] = Object.keys(zip.files).filter(f => !zip.files[f].dir && !f.startsWith('__MACOSX'))
 
-  // 1. Read manifest
-  const manifestFile = zip.file('imsmanifest.xml')
-  if (!manifestFile) throw new Error('No imsmanifest.xml — not a valid .imscc file')
-  const manifestXML = await manifestFile.async('string')
+  async function read(path: string): Promise<string> {
+    const f = zip.file(path)
+    if (!f) return ''
+    try { return await f.async('string') } catch { return '' }
+  }
 
-  // 2. Course title
-  const titleM1 = manifestXML.match(/<lomimscc:string[^>]*>([^<]+)<\/lomimscc:string>/)
-  const titleM2 = manifestXML.match(/<title>([^<]+)<\/title>/)
-  const courseTitle = decodeEntities((titleM1 || titleM2)?.[1]?.trim() || 'Imported Course')
+  // ── 1. Course title from manifest ────────────────────────────────────
+  const manifest = await read('imsmanifest.xml')
+  if (!manifest) throw new Error('No imsmanifest.xml found')
 
-  // 3. Resources map
-  const resources = parseManifestResources(manifestXML)
+  const titleM = manifest.match(/<lomimscc:string[^>]*>([\s\S]*?)<\/lomimscc:string>/)
+  const courseTitle = decodeEntities(titleM ? titleM[1].trim() : 'Imported Course')
 
-  // 4. All org items (flat list)
-  const orgItems = parseManifestItems(manifestXML)
+  // ── 2. Parse module_meta.xml — the real week/module structure ─────────
+  const moduleMeta = await read('course_settings/module_meta.xml')
+  
+  interface Module {
+    id: string
+    title: string
+    position: number
+    items: Array<{ id: string; title: string; contentType: string; identifierRef: string; position: number }>
+  }
 
-  // ── STRATEGY A: scan every file in zip for assignment/discussion content ──
-  // This is the most reliable approach — don't trust the manifest structure
-  const allAssignments: ParsedAssignment[] = []
+  const modules: Module[] = []
+
+  if (moduleMeta) {
+    const moduleBlocks = moduleMeta.match(/<module\s[^>]*>([\s\S]*?)<\/module>/g) || []
+    for (const block of moduleBlocks) {
+      const id = attr(block, 'identifier')
+      const title = decodeEntities(tag(block, 'title'))
+      const posStr = tag(block, 'position')
+      const position = posStr ? parseInt(posStr) : modules.length + 1
+
+      const items: Module['items'] = []
+      const itemBlocks = block.match(/<item\s[^>]*>([\s\S]*?)<\/item>/g) || []
+      for (const ib of itemBlocks) {
+        const iid = attr(ib, 'identifier')
+        const iTitle = decodeEntities(tag(ib, 'title'))
+        const contentType = tag(ib, 'content_type')
+        const identifierRef = tag(ib, 'identifierref')
+        const iPos = parseInt(tag(ib, 'position') || '0')
+        if (iid && iTitle) items.push({ id: iid, title: iTitle, contentType, identifierRef, position: iPos })
+      }
+
+      if (id && title) modules.push({ id, title, position, items })
+    }
+    modules.sort((a, b) => a.position - b.position)
+  }
+
+  // ── 3. Build resource map from manifest ──────────────────────────────
+  const resourceMap = new Map<string, { type: string; href: string }>()
+  const resRegex = /<resource\s([^>]*)>([\s\S]*?)<\/resource>/g
+  let rm: RegExpExecArray | null
+  while ((rm = resRegex.exec(manifest)) !== null) {
+    const rid = attr(rm[1], 'identifier')
+    const rtype = attr(rm[1], 'type').toLowerCase()
+    let rhref = attr(rm[1], 'href')
+    if (!rhref) {
+      const fm = rm[2].match(/<file\s+href="([^"]+)"/)
+      if (fm) rhref = fm[1]
+    }
+    if (rid) resourceMap.set(rid, { type: rtype, href: rhref })
+  }
+
+  // ── 4. Extract ALL assignments from g{hash}/assignment_settings.xml ───
+  const assignments: ParsedAssignment[] = []
   const seenTitles = new Set<string>()
-  const zipFiles = Object.keys(zip.files).filter(f => !f.startsWith('__MACOSX') && !zip.files[f].dir)
 
-  async function tryExtractAssignment(filePath: string, defaultWeek: string): Promise<ParsedAssignment | null> {
-    const file = zip.file(filePath)
-    if (!file) return null
-    let xml: string
-    try { xml = await file.async('string') } catch { return null }
+  const assignmentFiles = allFiles.filter(f => f.endsWith('/assignment_settings.xml'))
+  
+  for (const filePath of assignmentFiles) {
+    const xml = await read(filePath)
+    if (!xml) continue
 
-    // Must have a title
-    const titleM = xml.match(/<title>([^<]+)<\/title>/) || xml.match(/<name>([^<]+)<\/name>/)
-    if (!titleM) return null
-    const title = decodeEntities(titleM[1].trim())
-    if (!title || title.length < 2 || seenTitles.has(title)) return null
-
-    // Skip if it's clearly not an assignment (e.g. course overview pages)
-    const isAssignmentContent = xml.includes('points_possible') ||
-      xml.includes('submission_type') || xml.includes('assignment_group') ||
-      filePath.toLowerCase().includes('assignment') ||
-      filePath.toLowerCase().includes('discussion_topic') ||
-      xml.includes('<questestinterop') ||  // quiz
-      inferType(title) !== 'Assignment'  // title implies assignment type
-
-    if (!isAssignmentContent) return null
+    const title = decodeEntities(tag(xml, 'title'))
+    if (!title || seenTitles.has(title)) continue
     seenTitles.add(title)
 
-    const pointsM = xml.match(/<points_possible>([0-9.]+)/) ||
-                    xml.match(/points_possible[^>]*>([0-9.]+)/) ||
-                    xml.match(/<max_score[^>]*>([0-9.]+)/) ||
-                    xml.match(/score_value[^>]*>([0-9.]+)/)
-    const points = pointsM ? parseFloat(pointsM[1]) : 0
+    const pointsStr = tag(xml, 'points_possible')
+    const points = pointsStr ? parseFloat(pointsStr) : 0
+    const dueAt = tag(xml, 'due_at')
+    const due_date = dueAt ? dueAt.split('T')[0] : ''
 
-    const dueDateM = xml.match(/<due_at>([^<]+)<\/due_at>/)
-    const due_date = dueDateM ? dueDateM[1].trim().split('T')[0] : ''
-
-    const descM = xml.match(/<body>([\s\S]*?)<\/body>/) ||
-                  xml.match(/<description>([\s\S]*?)<\/description>/) ||
-                  xml.match(/<text[^>]*>([\s\S]*?)<\/text>/)
-    const description = descM ? stripHTML(descM[1]).slice(0, 800) : `${title} — imported from Canvas. Add a full description.`
-
-    return { title, type: inferType(title), points, week: defaultWeek, due_date, description }
-  }
-
-  // STRATEGY A1: process resources typed as assignment/discussion/quiz
-  for (const [, res] of resources) {
-    const t = res.type
-    if (t.includes('assignment') || t.includes('discussion') || t.includes('imsdt') ||
-        t.includes('imsqti') || t.includes('quiz')) {
-      if (res.href) {
-        const asg = await tryExtractAssignment(res.href, 'Week 1')
-        if (asg) allAssignments.push(asg)
+    // Get description from the sibling HTML file in same folder
+    const folder = filePath.replace('/assignment_settings.xml', '')
+    const siblingHTML = allFiles.find(f => f.startsWith(folder + '/') && f.endsWith('.html'))
+    let description = `${title} — imported from Canvas.`
+    if (siblingHTML) {
+      const html = await read(siblingHTML)
+      if (html) {
+        const bodyM = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
+        const bodyText = stripHTML(bodyM ? bodyM[1] : html).slice(0, 800)
+        if (bodyText.length > 20) description = bodyText
       }
     }
+
+    assignments.push({ title, type: inferType(title), points, week: 'Week 1', due_date, description })
   }
 
-  // STRATEGY A2: brute-force scan all files whose name suggests assignment content
-  for (const filePath of zipFiles) {
-    if (allAssignments.some(a => seenTitles.has(a.title))) {
-      // Already found some via resources — only scan files we haven't seen
-    }
-    const lower = filePath.toLowerCase()
-    const looksLikeAssignment =
-      lower.includes('assignment') ||
-      lower.includes('discussion_topic') ||
-      lower.includes('discussion') ||
-      (lower.endsWith('.xml') && !lower.includes('manifest') && !lower.includes('syllabus'))
+  // ── 5. Extract discussions from root-level g{hash}.xml (<topic> files) ─
+  const rootXMLs = allFiles.filter(f => f.endsWith('.xml') && !f.includes('/') && f !== 'imsmanifest.xml')
+  
+  for (const filePath of rootXMLs) {
+    const xml = await read(filePath)
+    if (!xml || !xml.includes('<topic ') && !xml.includes('<topic>')) continue
+    // Skip topicMeta files — they're duplicates
+    if (xml.trim().includes('<topicMeta')) continue
 
-    if (looksLikeAssignment && (filePath.endsWith('.xml') || filePath.endsWith('.html'))) {
-      const asg = await tryExtractAssignment(filePath, 'Week 1')
-      if (asg) allAssignments.push(asg)
-    }
+    const title = decodeEntities(tag(xml, 'title'))
+    if (!title || seenTitles.has(title)) continue
+    seenTitles.add(title)
+
+    const textContent = tag(xml, 'text')
+    const description = textContent
+      ? stripHTML(decodeEntities(textContent)).slice(0, 800)
+      : `${title} — Discussion imported from Canvas.`
+
+    assignments.push({ title, type: inferType(title), points: 0, week: 'Week 1', due_date: '', description })
   }
 
-  // STRATEGY A3: extract from org items whose title looks like an assignment
-  // (catches cases where assignments are listed in the org but have no separate XML file)
-  for (const item of orgItems) {
-    const title = item.title
-    if (!title || seenTitles.has(title) || title.length < 3) continue
-    const type = inferType(title)
-    // Only add if title strongly suggests it's an assignment (not a page/reading)
-    if (type !== 'Assignment') {
-      // Discussion, Lab, Quiz, etc — add as placeholder assignment
-      seenTitles.add(title)
-      allAssignments.push({
-        title, type, points: 0, week: 'Week 1', due_date: '',
-        description: `${title} — imported from Canvas. Add a full description.`,
-      })
-    }
-  }
+  // ── 6. Map assignments to modules/weeks ───────────────────────────────
+  // Build identifier → module position lookup
+  const identifierToModule = new Map<string, { moduleIdx: number; moduleTitle: string }>()
 
-  // ── Group org items into weeks ────────────────────────────────────────
-  // Cluster items by detected week number, then assign assignments to weeks
-  const weekMap = new Map<number, { topic: string; items: ManifestItem[] }>()
-  let autoNum = 1
-
-  for (const item of orgItems) {
-    const wn = extractWeekNum(item.title)
-    if (wn !== null) {
-      if (!weekMap.has(wn)) weekMap.set(wn, { topic: item.title, items: [] })
-      weekMap.get(wn)!.items.push(item)
-    } else {
-      // attach to last group or create new
-      const keys = [...weekMap.keys()].sort((a, b) => a - b)
-      const lastKey = keys[keys.length - 1]
-      if (lastKey !== undefined) {
-        weekMap.get(lastKey)!.items.push(item)
-      } else {
-        weekMap.set(autoNum, { topic: item.title, items: [item] })
-        autoNum++
-      }
+  for (let mi = 0; mi < modules.length; mi++) {
+    const mod = modules[mi]
+    for (const item of mod.items) {
+      identifierToModule.set(item.identifierRef, { moduleIdx: mi, moduleTitle: mod.title })
+      identifierToModule.set(item.id, { moduleIdx: mi, moduleTitle: mod.title })
     }
   }
 
-  // If no week structure detected, put everything in sequential weeks
-  if (weekMap.size === 0) {
-    orgItems.forEach((item, i) => {
-      weekMap.set(i + 1, { topic: item.title, items: [item] })
-    })
-  }
-
-  // Re-number contiguously (1, 2, 3...) if there are gaps
-  const sortedWeekNums = [...weekMap.keys()].sort((a, b) => a - b)
-
-  // ── Map assignments to their week by matching org item titles ─────────
-  // Build a map: assignment title → week number
-  const asgWeekMap = new Map<string, number>()
-  for (let i = 0; i < sortedWeekNums.length; i++) {
-    const wn = sortedWeekNums[i]
-    const group = weekMap.get(wn)!
-    const weekNum = i + 1  // renumbered sequentially
-
-    for (const item of group.items) {
-      const t = decodeEntities(item.title)
-      const asg = allAssignments.find(a => a.title === t || a.title.toLowerCase() === t.toLowerCase())
-      if (asg) asgWeekMap.set(asg.title, weekNum)
-
-      // Also try via resourceRef
-      if (item.resourceRef) {
-        const res = resources.get(item.resourceRef)
-        if (res?.href) {
-          // Find assignment whose source file matches this resource href
-          // We can't easily reverse-look that up, so just match by week item title
-          for (const asg2 of allAssignments) {
-            if (asg2.title.toLowerCase().includes(t.toLowerCase().slice(0, 15)) ||
-                t.toLowerCase().includes(asg2.title.toLowerCase().slice(0, 15))) {
-              if (!asgWeekMap.has(asg2.title)) asgWeekMap.set(asg2.title, weekNum)
-            }
-          }
+  // Now for each assignment, find which module it belongs to
+  // Match by: resource identifier in manifest → module item identifierRef
+  for (const asg of assignments) {
+    // Find resource ID by title match or file path
+    let found = false
+    
+    // Strategy 1: find module item whose title matches assignment title
+    for (let mi = 0; mi < modules.length; mi++) {
+      const mod = modules[mi]
+      for (const item of mod.items) {
+        if (item.title.toLowerCase() === asg.title.toLowerCase() ||
+            item.title.toLowerCase().includes(asg.title.toLowerCase().slice(0, 20)) ||
+            asg.title.toLowerCase().includes(item.title.toLowerCase().slice(0, 20))) {
+          asg.week = `Week ${mi + 1}`
+          found = true
+          break
         }
       }
+      if (found) break
     }
   }
 
-  // Apply week labels to assignments
-  for (const asg of allAssignments) {
-    const weekNum = asgWeekMap.get(asg.title)
-    if (weekNum) asg.week = `Week ${weekNum}`
-  }
-
-  // ── Build week rows ───────────────────────────────────────────────────
+  // ── 7. Build weeks from modules ───────────────────────────────────────
   const weeks: ParsedWeek[] = []
-  for (let i = 0; i < sortedWeekNums.length; i++) {
-    const wn = sortedWeekNums[i]
-    const group = weekMap.get(wn)!
-    const weekNum = i + 1
+
+  for (let mi = 0; mi < modules.length; mi++) {
+    const mod = modules[mi]
+    const weekNum = mi + 1
     const wLabel = `Week ${weekNum}`
 
-    const weekAssignmentTitles = allAssignments
+    const weekAssignmentTitles = assignments
       .filter(a => a.week === wLabel)
       .map(a => a.title)
 
-    const weekReadings: string[] = []
-    let weekDescription = ''
+    // Extract readings and links from wiki_content pages in this module
+    const readings: string[] = []
+    let description = ''
 
-    // Try to get HTML content from wiki pages in this week
-    for (const item of group.items.slice(0, 3)) {
-      if (!item.resourceRef) continue
-      const res = resources.get(item.resourceRef)
-      if (!res?.href || !res.href.endsWith('.html')) continue
-      const file = zip.file(res.href)
-      if (!file) continue
-      try {
-        const html = await file.async('string')
-        const text = stripHTML(html)
-        if (text.length > 30 && !weekDescription) weekDescription = text.slice(0, 200)
-        const urls = [...html.matchAll(/href="(https?:\/\/[^"]+)"/g)]
-          .map(m => m[1]).filter(u => !u.includes('canvas') && !u.includes('instructure'))
-        weekReadings.push(...urls.slice(0, 3))
-      } catch {}
+    for (const item of mod.items) {
+      const res = resourceMap.get(item.identifierRef)
+      if (!res?.href) continue
+
+      if (res.href.startsWith('wiki_content/') && res.href.endsWith('.html')) {
+        const html = await read(res.href)
+        if (!html) continue
+
+        // Extract PDF reading names
+        const pdfMatches = [...html.matchAll(/([A-Za-z0-9_\-\s]+\.pdf)/g)]
+        for (const m of pdfMatches) {
+          const name = m[1].trim().replace(/_/g, ' ').replace(/\.pdf$/i, '')
+          if (name.length > 3 && !readings.includes(name)) readings.push(name)
+        }
+
+        // Extract YouTube/Colab links as readings
+        const linkMatches = [...html.matchAll(/href="(https?:\/\/[^"]+)"/g)]
+        for (const m of linkMatches) {
+          const url = m[1]
+          if (!url.includes('canvas') && !url.includes('instructure') && !readings.includes(url)) {
+            readings.push(url)
+          }
+        }
+
+        // Description from page text
+        if (!description) {
+          const bodyM = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
+          const text = stripHTML(bodyM ? bodyM[1] : html)
+          if (text.length > 20) description = text.slice(0, 300)
+        }
+      }
     }
 
     weeks.push({
       week_number: weekNum,
-      topic: decodeEntities(group.topic),
-      description: weekDescription || `${wLabel} content imported from Canvas.`,
-      readings: weekReadings,
+      topic: mod.title,
+      description: description || `${wLabel}: ${mod.title} — imported from Canvas.`,
+      readings: readings.slice(0, 8),
       assignments_due: weekAssignmentTitles,
-      raw_content: weekDescription,
+      raw_content: description,
     })
   }
 
-  if (allAssignments.length === 0) {
-    warnings.push('No assignments found. Your Canvas export may not include assignment files. You can add assignments manually or use Deep Enrich.')
+  // If no modules found, fall back to a single week with everything
+  if (weeks.length === 0) {
+    warnings.push('No module structure found in module_meta.xml. Created a single week with all content.')
+    weeks.push({
+      week_number: 1, topic: courseTitle,
+      description: 'All course content imported from Canvas.',
+      readings: [], assignments_due: assignments.map(a => a.title), raw_content: '',
+    })
+    for (const a of assignments) a.week = 'Week 1'
   }
 
-  return {
-    courseName: courseTitle,
-    weeks,
-    assignments: allAssignments,
-    rawManifest: manifestXML.slice(0, 2000),
-    warnings,
+  if (assignments.length === 0) {
+    warnings.push('No assignments found. Add them manually or use Deep Enrich.')
   }
+
+  console.log(`[IMSCC v4] ${courseTitle}: ${modules.length} modules, ${assignments.length} assignments`)
+  console.log('[IMSCC v4] Assignments:', assignments.map(a => `${a.title} (${a.week}, ${a.points}pts)`))
+
+  return { courseName: courseTitle, weeks, assignments, rawManifest: manifest.slice(0, 2000), warnings }
 }
