@@ -134,6 +134,8 @@ export default function EnrichPanel({ courseId, totalWeeks, toolPreferences, onC
               courseTitle: course.title,
               courseDescription: course.description,
               existingAssignments,
+              existingReadings: (week.readings || []).filter((r: any) => typeof r === 'string' && !r.startsWith('http') && r.length > 5),
+              existingResources: (week.reinforcement_materials || []).map((m: any) => m.title || '').filter(Boolean),
               options,
               toolPreferences: toolPreferences || null,
             }),
