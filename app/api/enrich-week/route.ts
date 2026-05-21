@@ -117,20 +117,24 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // ── Save enrichment history FIRST (always, regardless of what options are chosen) ──
-    const { error: histErr } = await supabase.from('week_enrichments').insert({
-      course_id: courseId,
-      week_id: weekId,
-      user_id: user.id,
-      week_number: weekNumber,
-      topic,
-      concept_overview: weekData.concept_overview || null,
-      assignments: weekData.assignments || [],
-      readings: weekData.readings || [],
-      reinforcement_materials: weekData.reinforcement_materials || [],
-      realworld: weekData.realworld || [],
-    })
-    if (histErr) console.error('enrichment history save error:', histErr.message)
+    // ── Save enrichment history (non-blocking — if table doesn't exist yet, skip silently) ──
+    try {
+      await supabase.from('week_enrichments').insert({
+        course_id: courseId,
+        week_id: weekId,
+        user_id: user.id,
+        week_number: weekNumber,
+        topic,
+        concept_overview: weekData.concept_overview || null,
+        assignments: weekData.assignments || [],
+        readings: weekData.readings || [],
+        reinforcement_materials: weekData.reinforcement_materials || [],
+        realworld: weekData.realworld || [],
+      })
+    } catch (histErr: any) {
+      // Don't block enrichment if history table doesn't exist
+      console.warn('enrichment history skipped:', histErr.message)
+    }
 
     // ── Update the week row ──
     const weekUpdates: Record<string, any> = {}
@@ -141,15 +145,16 @@ export async function POST(req: NextRequest) {
     }
 
     if (Object.keys(weekUpdates).length > 0) {
-      const { error: updateErr } = await supabase
+      // Update by id only — don't filter by user_id since RLS already handles auth
+      const { error: updateErr, count } = await supabase
         .from('weeks')
         .update(weekUpdates)
         .eq('id', weekId)
-        .eq('user_id', user.id)  // explicit RLS match
       if (updateErr) {
-        console.error('week update error:', updateErr.message, updateErr.code)
-        // Don't fail the whole request — assignments and realworld may still save
+        console.error('week update error:', updateErr.message, updateErr.code, updateErr.details)
+        return NextResponse.json({ error: `Week save failed: ${updateErr.message}` }, { status: 500 })
       }
+      console.log(`week ${weekNumber} updated, count:`, count)
     }
 
     // ── Insert new assignments ──
@@ -193,6 +198,7 @@ export async function POST(req: NextRequest) {
       realworld: weekData.realworld || [],
     }
 
+    console.log(`[enrich-week] Week ${weekNumber} complete — returning result`)
     return NextResponse.json({ result })
   } catch (err: any) {
     console.error('enrich-week unhandled error:', err)
