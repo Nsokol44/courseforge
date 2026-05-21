@@ -187,17 +187,36 @@ export async function parseIMSCC(buffer: ArrayBuffer): Promise<IMSCCParseResult>
 
   // ── 5. Extract discussions from root-level g{hash}.xml (<topic> files) ─
   const rootXMLs = allFiles.filter(f => f.endsWith('.xml') && !f.includes('/') && f !== 'imsmanifest.xml')
-  
+
+  // Patterns that indicate an instructor ANNOUNCEMENT — not a student assignment
+  const announcementPatterns = [
+    /\bis (up|now|available|live)\b/i,
+    /\binformation\b/i,
+    /congratulations/i,
+    /^rest of the/i,
+    /notebook is up/i,
+    /apolog/i,
+    /^update[:\s]/i,
+    /\breminder\b/i,
+    /tasks? for the (rest|remainder)/i,
+  ]
+
   for (const filePath of rootXMLs) {
     const xml = await read(filePath)
-    if (!xml || !xml.includes('<topic ') && !xml.includes('<topic>')) continue
+    if (!xml || (!xml.includes('<topic ') && !xml.includes('<topic>'))) continue
     // Skip topicMeta files — they're duplicates
     if (xml.trim().includes('<topicMeta')) continue
 
     const title = decodeEntities(tag(xml, 'title'))
     if (!title || seenTitles.has(title)) continue
-    seenTitles.add(title)
 
+    // Skip instructor announcements — they aren't student assignments
+    if (announcementPatterns.some(p => p.test(title))) {
+      seenTitles.add(title)
+      continue
+    }
+
+    seenTitles.add(title)
     const textContent = tag(xml, 'text')
     const description = textContent
       ? stripHTML(decodeEntities(textContent)).slice(0, 800)
