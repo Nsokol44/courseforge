@@ -154,6 +154,8 @@ export default function CourseView({ course: initialCourse, profile }: Props) {
       setOrganizing(false)
     }
   }
+
+  async function deleteWeek(id: string) {
     if (!confirm('Delete this week?')) return
     await supabase.from('weeks').delete().eq('id', id)
     setCourse(prev => ({ ...prev, weeks: prev.weeks?.filter(w => w.id !== id) }))
