@@ -129,7 +129,31 @@ export default function CourseView({ course: initialCourse, profile }: Props) {
     }))
   }
 
-  async function deleteWeek(id: string) {
+  const [organizing, setOrganizing] = useState(false)
+
+  async function organizeCourse() {
+    setOrganizing(true)
+    try {
+      const res = await fetch('/api/organize-course', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ courseId: course.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      const parts = []
+      if (data.removed > 0) parts.push(`removed ${data.removed} announcement${data.removed !== 1 ? 's' : ''}`)
+      if (data.reclassified > 0) parts.push(`reclassified ${data.reclassified}`)
+      if (data.remapped > 0) parts.push(`remapped ${data.remapped} to correct weeks`)
+      if (parts.length === 0) parts.push('everything already organized')
+      toast.success(`✓ Organized — ${parts.join(', ')}`)
+      router.refresh()
+    } catch (err: any) {
+      toast.error(`Organize failed: ${err.message}`)
+    } finally {
+      setOrganizing(false)
+    }
+  }
     if (!confirm('Delete this week?')) return
     await supabase.from('weeks').delete().eq('id', id)
     setCourse(prev => ({ ...prev, weeks: prev.weeks?.filter(w => w.id !== id) }))
@@ -176,6 +200,18 @@ export default function CourseView({ course: initialCourse, profile }: Props) {
               course={course}
               onSave={(prefs: ToolPreferences) => setCourse(prev => ({ ...prev, tool_preferences: prefs }))}
             />
+            <button
+              className="button is-ghost"
+              onClick={organizeCourse}
+              disabled={organizing}
+              title="Remove announcements, fix assignment types, map to correct weeks"
+              style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, color: 'var(--cf-muted)', border: '1px solid var(--cf-line)' }}
+            >
+              {organizing
+                ? <><span className="cf-spin" style={{ width: 12, height: 12, borderWidth: 1.5 }} /> Organizing…</>
+                : <>⊹ Organize Content</>
+              }
+            </button>
             <EnrichPanel
               courseId={course.id}
               totalWeeks={course.weeks?.length || 0}
